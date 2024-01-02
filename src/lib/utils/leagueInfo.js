@@ -27,8 +27,8 @@ https://github.com/nmelhado/league-page/blob/master/TRAINING_WHEELS.md#ii-adding
 export const managers = [
     {
       "roster": 1,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Bill and Grayson",
       "managerID": "873326297848442880"
+      "name": "Bill and Grayson",
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Alpharetta", // (optional)
       "bio": "the Unicorns",
@@ -50,8 +50,8 @@ export const managers = [
     },
     {
       "roster": 2,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Grant and Melissa",
       "managerID": "869629223269203968"
+      "name": "Grant and Melissa",
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "commish",
@@ -73,8 +73,8 @@ export const managers = [
     },
     {
       "roster": 3,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Carter Grimes",
       "managerID": "869715651588239360"
+      "name": "Carter Grimes",
       "tookOver": 2021, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "",
@@ -96,8 +96,8 @@ export const managers = [
     },
     {
       "roster": 4,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
+      "managerID": "864909340086226944"
       "name": "Jordan Abrams",
-      "managerID": "869715651588239360"
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "",
@@ -119,8 +119,8 @@ export const managers = [
     }, 
     {
       "roster": 5,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Garrett Davis",
       "managerID": "736961246087241728"
+      "name": "Garrett Davis",
       "tookOver": 2020, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "",
@@ -142,8 +142,8 @@ export const managers = [
     },
     {
       "roster": 6,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Ricky Mohrig",
       "managerID": "674798465431216128"
+      "name": "Ricky Mohrig",
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "",
@@ -165,8 +165,8 @@ export const managers = [
     },
     {
       "roster": 7,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
+      "managerID": "676175709789556736"
       "name": "Tyler Williams",
-      "managerID": "869715651588239360"
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "",
@@ -188,8 +188,8 @@ export const managers = [
     },
     {
       "roster": 8,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Sasan Assary",
       "managerID": "216257709400399872"
+      "name": "Sasan Assary",
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Florida", // (optional)
       "bio": "",
@@ -211,8 +211,8 @@ export const managers = [
     },
     {
       "roster": 9,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Mike Yun",
       "managerID": "869653222627909632"
+      "name": "Mike Yun",
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "",
@@ -234,8 +234,8 @@ export const managers = [
     }, 
     {
       "roster": 10,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Justin Williams",
       "managerID": "869641185436807168"
+      "name": "Justin Williams",
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Tampa - FL", // (optional)
       "bio": "",
@@ -257,8 +257,8 @@ export const managers = [
     },
     {
       "roster": 11,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Zach Miller",
       "managerID": "865087831142465536"
+      "name": "Zach Miller",
       "tookOver": 2022, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Atlanta", // (optional)
       "bio": "",
@@ -278,10 +278,10 @@ export const managers = [
       "tradingScale": 10, // 1 - 10
       "preferredContact": "Sleeper", // 'Text', 'WhatsApp', 'Sleeper', 'Email', 'Phone', 'Discord', and 'Carrier Pigeon' are currently supplied in the template
     },
-      {
+    {
       "roster": 12,  // ID of the roster that the manager manages (look at the order of the power rankings graph)
-      "name": "Jim Zmija",
       "managerID": "869685304523677696"
+      "name": "Jim Zmija",
       "tookOver": 2019, // (optional) used if a manager took over a team, delete this line or change to null otherwise
       "location": "Sun Lakes - AZ", // (optional)
       "bio": "",
