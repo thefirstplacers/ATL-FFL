@@ -7,12 +7,12 @@ export const enableBlog = false; // requires VITE_CONTENTFUL_ACCESS_TOKEN and VI
 
 /*   STEP 2   */
 export const homepageText = `
-  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-  <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-  <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-  <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+  <p>Dear ATL FFL,</p>
+  <p>As the echoes of the 2023 season final whistle reverberate across the anals of fantasy football history, it's time to bid adieu to yet another exhilarating season of fantasy football. What a journey it has been—filled with touchdowns, upsets, waiver wire steals, and the sheer joy of competitive camaraderie.</p>
+  <p>We stand at the threshold of the season's end, looking back at the rollercoaster of emotions and strategic masterstrokes that defined our league. Each matchup brought its own drama, victories celebrated, defeats lamented, but all contributing to the vibrant tapestry of our shared experience.</p>
+  <p>In this league, you've showcased your football savvy, navigated the highs and lows of the fantasy landscape, and built lasting memories amidst the adrenaline of the game. Your dedication, resilience, and tactical brilliance have made this league a treasure trove of sportsmanship and camaraderie.</p>
+  <p>As we wrap up lets take a moment to celebrate the 2023 winner, Zach Miller. He showed dominance from start to finish and managed to add a ring to his trophy case. Let us carry these memories, heart-pounding moments, and lessons learned to the offseason (and eventually next season). Rest assured, this thrill awaits us again and the countdown begins now.</p>
+  <p>Farewell, your commish "Bofa King" aka MR Big Drop </p>
 `;
 
 /*   STEP 3   */
