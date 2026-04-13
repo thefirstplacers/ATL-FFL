@@ -1,0 +1,247 @@
+export const LEAGUE_ID = '1313984141653463040'; // 2026 (current)
+export const PREV_LEAGUE_ID = '1249972596817014784'; // 2025
+
+export const LEAGUE_NAME = 'ATL FFL';
+export const LEAGUE_EST = 2019;
+
+export const DIVISIONS: Record<number, string> = {
+  1: 'The Hokage',
+  2: 'The Emperors',
+  3: 'The Z Fighters',
+};
+
+export const DIVISION_COLORS: Record<number, string> = {
+  1: '#ef4444', // red
+  2: '#3b82f6', // blue
+  3: '#22c55e', // green
+};
+
+export const ROSTER_POSITIONS = ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'];
+export const BENCH_SLOTS = 6;
+export const PLAYOFF_TEAMS = 6;
+export const PLAYOFF_START_WEEK = 15;
+export const REGULAR_SEASON_WEEKS = 14;
+export const TOTAL_WEEKS = 17;
+export const TRADE_DEADLINE_WEEK = 12;
+export const FAAB_BUDGET = 100;
+
+// Draft countdown - August 2026 (placeholder, adjust when known)
+export const DRAFT_DATE = '2026-08-23T18:00:00';
+
+// Scoring highlights
+export const SCORING = {
+  pass_yd: 0.04,
+  pass_td: 4,
+  pass_int: -1,
+  rush_yd: 0.1,
+  rush_td: 6,
+  rec_yd: 0.1,
+  rec_td: 6,
+  fum_lost: -2,
+  def_sack: 1,
+  def_td: 6,
+  def_int: 2,
+  def_saf: 2,
+};
+
+// Map roster_id (from 2025 season) to owner info
+export const MANAGER_INFO: Record<string, {
+  name: string;
+  coManagerName?: string;
+  location: string;
+  photo: string;
+  favoriteTeam: string;
+  fantasyStart: number | null;
+  bio: string;
+  mode: string;
+  rivalName: string;
+  rivalPhoto: string;
+  philosophy: string;
+  tradingScale: number;
+  preferredContact: string;
+  favoritePosition: string;
+}> = {
+  '869658110913105920': {
+    name: 'Bill',
+    coManagerName: 'Grayson',
+    location: 'Alpharetta',
+    photo: '/managers/billgrayson.jpg',
+    favoriteTeam: 'atl',
+    fantasyStart: 2014,
+    bio: 'the Unicorns - 2025 Champions!',
+    mode: 'Win Now',
+    rivalName: 'Everyone',
+    rivalPhoto: '/managers/everyone.png',
+    philosophy: 'Consistency is key',
+    tradingScale: 1,
+    preferredContact: 'Carrier Pigeon',
+    favoritePosition: 'WR',
+  },
+  '869629223269203968': {
+    name: 'Grant',
+    coManagerName: 'Melissa',
+    location: 'Atlanta',
+    photo: '/managers/grantmelissa1.jpg',
+    favoriteTeam: 'min',
+    fantasyStart: null,
+    bio: 'Commissioner',
+    mode: 'Win Now',
+    rivalName: 'Tyler',
+    rivalPhoto: '/managers/tyler.jpg',
+    philosophy: 'There is nothing impossible to him who will try',
+    tradingScale: 10,
+    preferredContact: 'Text',
+    favoritePosition: 'RB',
+  },
+  '869715651588239360': {
+    name: 'Carter Grimes',
+    location: 'Atlanta',
+    photo: '/managers/carter.jpg',
+    favoriteTeam: 'dal',
+    fantasyStart: 2021,
+    bio: 'Lord of the Scraps',
+    mode: 'Win Now',
+    rivalName: 'Garrett',
+    rivalPhoto: '/managers/garrett1.jpg',
+    philosophy: '',
+    tradingScale: 7,
+    preferredContact: 'Sleeper',
+    favoritePosition: 'WR',
+  },
+  '864909340086226944': {
+    name: 'Jordan Abrams',
+    location: 'Atlanta',
+    photo: '/managers/jordan.jpg',
+    favoriteTeam: 'atl',
+    fantasyStart: 2021,
+    bio: 'Thank you, thank you',
+    mode: 'Win Now',
+    rivalName: 'Jim',
+    rivalPhoto: '/managers/jim.jpg',
+    philosophy: '',
+    tradingScale: 10,
+    preferredContact: 'Sleeper',
+    favoritePosition: 'RB',
+  },
+  '736961246087241728': {
+    name: 'Garrett Davis',
+    location: 'Atlanta',
+    photo: '/managers/garrett1.jpg',
+    favoriteTeam: 'nyj',
+    fantasyStart: 2015,
+    bio: 'Egbukake',
+    mode: 'Rebuild',
+    rivalName: 'League Champ',
+    rivalPhoto: '/managers/zach.jpg',
+    philosophy: '',
+    tradingScale: 10,
+    preferredContact: 'Text',
+    favoritePosition: 'WR',
+  },
+  '674798465431216128': {
+    name: 'Ricky Mohrig',
+    location: 'Atlanta',
+    photo: '/managers/ricky1.jpg',
+    favoriteTeam: 'atl',
+    fantasyStart: 2012,
+    bio: 'Illegally LaPorted',
+    mode: 'Win Now',
+    rivalName: 'Garrett',
+    rivalPhoto: '/managers/garrett1.jpg',
+    philosophy: '',
+    tradingScale: 8,
+    preferredContact: 'Text',
+    favoritePosition: 'WR',
+  },
+  '865087831142465536': {
+    name: 'Zach Miller',
+    location: 'Atlanta',
+    photo: '/managers/zach.jpg',
+    favoriteTeam: 'gb',
+    fantasyStart: 2015,
+    bio: 'Best to Worst',
+    mode: 'Win Now',
+    rivalName: 'Garrett',
+    rivalPhoto: '/managers/garrett1.jpg',
+    philosophy: '',
+    tradingScale: 5,
+    preferredContact: 'Text',
+    favoritePosition: 'QB',
+  },
+  '857978234233556992': {
+    name: 'Sasan Sims',
+    location: 'Atlanta',
+    photo: '/managers/sasan.jpg',
+    favoriteTeam: 'atl',
+    fantasyStart: 2019,
+    bio: '',
+    mode: 'Rebuild',
+    rivalName: 'Everyone',
+    rivalPhoto: '/managers/everyone.png',
+    philosophy: '',
+    tradingScale: 3,
+    preferredContact: 'Text',
+    favoritePosition: 'RB',
+  },
+  '869641185436807168': {
+    name: 'Justin Williams',
+    location: 'Atlanta',
+    photo: '/managers/justin.jpg',
+    favoriteTeam: 'atl',
+    fantasyStart: 2019,
+    bio: "'25-'26 CHAMPION (self-proclaimed)",
+    mode: 'Win Now',
+    rivalName: 'Grant',
+    rivalPhoto: '/managers/grantmelissa1.jpg',
+    philosophy: '',
+    tradingScale: 6,
+    preferredContact: 'Sleeper',
+    favoritePosition: 'QB',
+  },
+  '869653222627909632': {
+    name: 'Mike',
+    coManagerName: 'Brownsugarbish',
+    location: 'Atlanta',
+    photo: '/managers/mike.jpg',
+    favoriteTeam: 'atl',
+    fantasyStart: 2019,
+    bio: 'Rush Hour 4',
+    mode: 'Rebuild',
+    rivalName: 'Everyone',
+    rivalPhoto: '/managers/everyone.png',
+    philosophy: '',
+    tradingScale: 4,
+    preferredContact: 'Sleeper',
+    favoritePosition: 'WR',
+  },
+  '676175709789556736': {
+    name: 'Tyler',
+    location: 'Atlanta',
+    photo: '/managers/tyler.jpg',
+    favoriteTeam: 'atl',
+    fantasyStart: 2019,
+    bio: 'I cry evrytim :,(',
+    mode: 'Rebuild',
+    rivalName: 'Grant',
+    rivalPhoto: '/managers/grantmelissa1.jpg',
+    philosophy: '',
+    tradingScale: 5,
+    preferredContact: 'Text',
+    favoritePosition: 'RB',
+  },
+  '869685304523677696': {
+    name: 'Jim',
+    location: 'Atlanta',
+    photo: '/managers/jim.jpg',
+    favoriteTeam: 'tb',
+    fantasyStart: 2019,
+    bio: "Buck-ees Bucs",
+    mode: 'Win Now',
+    rivalName: 'Jordan',
+    rivalPhoto: '/managers/jordan.jpg',
+    philosophy: '',
+    tradingScale: 5,
+    preferredContact: 'Sleeper',
+    favoritePosition: 'TE',
+  },
+};
