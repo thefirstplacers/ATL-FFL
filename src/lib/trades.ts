@@ -398,25 +398,73 @@ export interface TradeSuggestion {
   reasoning: string[];
 }
 
+// Positions to consider when matching wants (K/DEF are streamed, not traded).
+const TRADEABLE_POSITIONS: RosterPosition[] = ['QB', 'RB', 'WR', 'TE'];
+
+// A team "wants" a position if their grade is below the league avg there —
+// even a small deficit is interesting. We relax the old ±10 hard threshold
+// that was filtering out every balanced team.
+function positionWants(team: TeamRosterAnalysis, leagueAverages: Record<RosterPosition, number>): RosterPosition[] {
+  const wants: Array<{ pos: RosterPosition; gap: number }> = [];
+  for (const pos of TRADEABLE_POSITIONS) {
+    const gap = leagueAverages[pos] - team.positionGrades[pos]; // positive = below avg
+    wants.push({ pos, gap });
+  }
+  // Everyone has 2-3 positions they'd happily upgrade. Sort by largest gap.
+  return wants.sort((a, b) => b.gap - a.gap).slice(0, 3).map((w) => w.pos);
+}
+
+// What team has to spare: a position where they have strong depth (second-best
+// player at that position is still T1-T3). We surface these as "givable" even
+// if the team isn't formally in "surplus" territory.
+function positionHas(team: TeamRosterAnalysis): RosterPosition[] {
+  const has: Array<{ pos: RosterPosition; depth: number }> = [];
+  for (const pos of TRADEABLE_POSITIONS) {
+    const atPos = team.players.filter((p) => p.position === pos).sort((a, b) => b.tradeValue - a.tradeValue);
+    // Depth score: 2nd-best player's trade value (what you could trade without
+    // gutting your starting lineup).
+    const second = atPos[1]?.tradeValue ?? 0;
+    has.push({ pos, depth: second });
+  }
+  return has.sort((a, b) => b.depth - a.depth).slice(0, 3).map((w) => w.pos);
+}
+
 export function findTradeSuggestions(
   myTeam: TeamRosterAnalysis,
   allTeams: TeamRosterAnalysis[],
+  leagueAverages: Record<RosterPosition, number>,
   opts: { maxPerPartner?: number; minValueToTrade?: number } = {},
 ): TradeSuggestion[] {
-  const { maxPerPartner = 3, minValueToTrade = 15 } = opts;
+  const { maxPerPartner = 3, minValueToTrade = 10 } = opts;
   const suggestions: TradeSuggestion[] = [];
   const partners = allTeams.filter((t) => t.rosterId !== myTeam.rosterId);
 
+  const myWants = positionWants(myTeam, leagueAverages);
+  const myHas = positionHas(myTeam);
+
   for (const partner of partners) {
     const partnerSuggestions: TradeSuggestion[] = [];
+    const partnerWants = positionWants(partner, leagueAverages);
+    const partnerHas = positionHas(partner);
 
-    for (const myNeed of myTeam.needPositions) {
+    // Valid matches:
+    //   myWant ∈ myWants AND myWant ∈ partnerHas  (they have what I want)
+    //   partnerWant ∈ partnerWants AND partnerWant ∈ myHas (I have what they want)
+    const myNeedsMatched = myWants.filter((p) => partnerHas.includes(p));
+    const theirNeedsMatched = partnerWants.filter((p) => myHas.includes(p));
+
+    // Fallback: if no clean match, still try any cross-want pairing (you can
+    // always offer somebody something they might like).
+    const myNeeds = myNeedsMatched.length > 0 ? myNeedsMatched : myWants;
+    const theirNeeds = theirNeedsMatched.length > 0 ? theirNeedsMatched : partnerWants;
+
+    for (const myNeed of myNeeds) {
       const needMatchers = myNeed === 'FLEX' ? ['RB', 'WR', 'TE'] : [myNeed];
       const receivingCandidates = partner.players.filter(
         (p) => needMatchers.includes(p.position) && p.tradeValue >= minValueToTrade,
       );
 
-      for (const partnerNeed of partner.needPositions) {
+      for (const partnerNeed of theirNeeds) {
         const giveMatchers = partnerNeed === 'FLEX' ? ['RB', 'WR', 'TE'] : [partnerNeed];
         const givingCandidates = myTeam.players.filter(
           (p) => giveMatchers.includes(p.position) && p.tradeValue >= minValueToTrade,
@@ -424,29 +472,49 @@ export function findTradeSuggestions(
 
         for (const receiving of receivingCandidates) {
           for (const giving of givingCandidates) {
-            const myPositionGrade = myTeam.positionGrades[giving.position as RosterPosition] || 0;
-            if (myPositionGrade - giving.tradeValue < 30 && giving.tradeValue > 55) continue;
+            // Don't suggest giving up a top player if I'd have nothing left at
+            // that position. "Protect the starters" rule.
+            const myAtGivingPos = myTeam.players
+              .filter((p) => p.position === giving.position)
+              .sort((a, b) => b.tradeValue - a.tradeValue);
+            const indexOfGiving = myAtGivingPos.findIndex((p) => p.id === giving.id);
+            const slotsNeeded = giving.position === 'QB' ? 1 : giving.position === 'TE' ? 1 : 2;
+            // If this player is among my top `slotsNeeded`, only trade them if
+            // the incoming player is a clear upgrade at that position OR I'm
+            // trading surplus at a different position.
+            if (indexOfGiving < slotsNeeded && giving.position !== receiving.position) {
+              const behindGiving = myAtGivingPos[slotsNeeded]?.tradeValue ?? 0;
+              if (giving.tradeValue - behindGiving > 20) continue; // too big a dropoff
+            }
 
             const valueDelta = receiving.tradeValue - giving.tradeValue;
-            const fairness = 100 - Math.min(Math.abs(valueDelta) * 2, 100);
-            if (fairness < 50) continue;
+            const fairness = 100 - Math.min(Math.abs(valueDelta) * 2.5, 100);
+            if (fairness < 40) continue;
 
-            const myFitGain = Math.max(0, 60 - myTeam.positionGrades[myNeed as RosterPosition]);
-            const partnerFitGain = Math.max(0, 60 - partner.positionGrades[partnerNeed as RosterPosition]);
+            // Fit = how much each team's weak position improves. Bigger
+            // improvements = better fit.
+            const myCurrent = myTeam.positionGrades[myNeed as RosterPosition];
+            const partnerCurrent = partner.positionGrades[partnerNeed as RosterPosition];
+            const myFitGain = Math.max(0, leagueAverages[myNeed] - myCurrent) + Math.max(0, receiving.tradeValue - 40);
+            const partnerFitGain = Math.max(0, leagueAverages[partnerNeed] - partnerCurrent) + Math.max(0, giving.tradeValue - 40);
             const fitScore = Math.min(100, myFitGain + partnerFitGain);
 
             const tradeActivityWeight = partner.tradingScale != null ? partner.tradingScale / 10 : 0.5;
-            const overallScore = fairness * 0.35 + fitScore * 0.45 + (valueDelta > 0 ? 10 : 0) + tradeActivityWeight * 10;
+            const overallScore = fairness * 0.30 + fitScore * 0.45 + (valueDelta > 0 ? 10 : 0) + tradeActivityWeight * 15;
 
+            const myGradeStr = Math.round(myCurrent);
+            const theirGradeStr = Math.round(partnerCurrent);
             const reasoning: string[] = [
-              `You're weak at ${myNeed} (grade ${Math.round(myTeam.positionGrades[myNeed as RosterPosition])}/100) — ${receiving.name} (${receiving.ppg} PPG, ${receiving.vorp > 0 ? '+' : ''}${receiving.vorp} VORP) fills that hole.`,
-              `${partner.managerName} is weak at ${partnerNeed} (grade ${Math.round(partner.positionGrades[partnerNeed as RosterPosition])}/100) — ${giving.name} (${giving.ppg} PPG) fits their need.`,
+              `Your ${myNeed} grade is ${myGradeStr}/100 (league avg ${Math.round(leagueAverages[myNeed])}). ${receiving.name} — ${receiving.ppg} PPG, ${receiving.vorp > 0 ? '+' : ''}${receiving.vorp} VORP — is an upgrade.`,
+              `${partner.managerName}'s ${partnerNeed} grade is ${theirGradeStr}/100 (avg ${Math.round(leagueAverages[partnerNeed])}). ${giving.name} (${giving.ppg} PPG) improves that room.`,
             ];
-            if (Math.abs(valueDelta) <= 5) reasoning.push('Roughly even-value swap.');
+            if (Math.abs(valueDelta) <= 5) reasoning.push('Essentially even-value swap.');
             else if (valueDelta > 0) reasoning.push(`You come out ahead by ~${valueDelta} value points.`);
             else reasoning.push(`You give up ~${-valueDelta} value points, but gain positional fit.`);
             if (partner.tradingScale != null && partner.tradingScale >= 7) {
-              reasoning.push(`${partner.managerName} is an active trader (${partner.tradingScale}/10).`);
+              reasoning.push(`${partner.managerName} is an active trader (${partner.tradingScale}/10) — higher chance they say yes.`);
+            } else if (partner.tradingScale != null && partner.tradingScale <= 3) {
+              reasoning.push(`Heads up: ${partner.managerName} is a reluctant trader (${partner.tradingScale}/10).`);
             }
 
             partnerSuggestions.push({

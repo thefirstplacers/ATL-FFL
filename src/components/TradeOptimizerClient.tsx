@@ -73,8 +73,8 @@ export default function TradeOptimizerClient({ teams, leagueAverages, isOffseaso
 
   const suggestions: TradeSuggestion[] = useMemo(() => {
     if (!myTeam) return [];
-    return findTradeSuggestions(myTeam, teams, { maxPerPartner: 2 }).slice(0, 15);
-  }, [myTeam, teams]);
+    return findTradeSuggestions(myTeam, teams, leagueAverages, { maxPerPartner: 2 }).slice(0, 20);
+  }, [myTeam, teams, leagueAverages]);
 
   const tabs: Array<{ id: typeof activeTab; label: string }> = [
     { id: 'suggestions', label: '💡 Suggested Trades' },

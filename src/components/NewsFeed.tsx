@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { timeAgo } from '@/lib/utils';
+import RedditFeed from '@/components/RedditFeed';
 
 interface NewsItem {
   title: string;
@@ -37,18 +38,7 @@ const TWITTER_ACCOUNTS = [
 
 type TabType = 'news' | 'social' | 'blog';
 
-interface RedditPost {
-  title: string;
-  url: string;
-  permalink: string;
-  score: number;
-  numComments: number;
-  author: string;
-  created: number;
-  flair: string;
-}
-
-export default function NewsFeed({ news, blogPosts, redditPosts }: { news: NewsItem[]; blogPosts: BlogPost[]; redditPosts: RedditPost[] }) {
+export default function NewsFeed({ news, blogPosts }: { news: NewsItem[]; blogPosts: BlogPost[] }) {
   const [activeFilter, setActiveFilter] = useState('All');
   const [activeTab, setActiveTab] = useState<TabType>('news');
 
@@ -81,61 +71,7 @@ export default function NewsFeed({ news, blogPosts, redditPosts }: { news: NewsI
       {activeTab === 'social' ? (
         /* Social Feed */
         <div>
-          {/* Reddit r/fantasyfootball */}
-          <div className="glass-card overflow-hidden mb-6">
-            <div className="px-5 py-3 border-b border-border/30 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#FF4500] flex items-center justify-center text-white font-bold text-xs">r/</div>
-                <div>
-                  <h3 className="font-bold">r/fantasyfootball</h3>
-                  <p className="text-text-muted text-xs">Hot posts &middot; 2M+ members</p>
-                </div>
-              </div>
-              <a href="https://www.reddit.com/r/fantasyfootball/" target="_blank" rel="noopener noreferrer" className="text-gold text-xs hover:underline">
-                View on Reddit →
-              </a>
-            </div>
-            {redditPosts.length > 0 ? (
-              <div className="divide-y divide-border/20">
-                {redditPosts.map((post, i) => (
-                  <a
-                    key={i}
-                    href={`https://www.reddit.com${post.permalink}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-5 py-3 flex items-start gap-3 hover:bg-surface-hover transition-colors block"
-                  >
-                    <div className="flex flex-col items-center min-w-[40px] pt-1">
-                      <span className="text-[#FF4500] text-xs font-bold">▲</span>
-                      <span className="text-sm font-bold text-text-secondary">
-                        {post.score > 0 ? (post.score >= 1000 ? `${(post.score / 1000).toFixed(1)}k` : post.score) : '•'}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm leading-snug">{post.title}</div>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        {post.flair && <span className="px-2 py-0.5 rounded text-xs bg-[#FF4500]/20 text-[#FF4500]">{post.flair}</span>}
-                        <span className="text-text-muted text-xs">u/{post.author}</span>
-                        {post.numComments > 0 && <span className="text-text-muted text-xs">&middot; {post.numComments} comments</span>}
-                      </div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div className="px-5 py-8 text-center text-text-muted text-sm">
-                <div className="mb-3">Reddit is rate-limiting server requests right now.</div>
-                <a
-                  href="https://www.reddit.com/r/fantasyfootball/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FF4500]/10 hover:bg-[#FF4500]/20 text-[#FF4500] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
-                >
-                  Open r/fantasyfootball →
-                </a>
-              </div>
-            )}
-          </div>
+          <RedditFeed subreddit="fantasyfootball" />
 
           {/* X Accounts */}
           <div className="glass-card p-5 mb-4">

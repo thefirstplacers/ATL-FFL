@@ -1,24 +1,24 @@
 import type { Metadata } from 'next';
 import PageHeader from '@/components/ui/PageHeader';
 import NewsFeed from '@/components/NewsFeed';
-import { fetchRSS, fetchRedditRSS } from '@/lib/rss';
+import { fetchRSS } from '@/lib/rss';
 import { BLOG_POSTS } from '@/lib/blog-posts';
 
 export const revalidate = 1800;
 
 export const metadata: Metadata = {
   title: 'News & Updates · ATL FFL',
-  description: 'NFL headlines, fantasy news, Reddit fantasy football discussions, and Commissioner\'s Corner posts.',
+  description: 'NFL headlines, fantasy news, Reddit discussions, and Commissioner\'s Corner posts.',
 };
 
 export default async function NewsPage() {
-  const [feeds, redditPosts] = await Promise.all([
-    Promise.all([
-      fetchRSS('https://www.espn.com/espn/rss/nfl/news', 'ESPN', 'NFL'),
-      fetchRSS('https://www.nfl.com/rss/rsslanding?searchString=home', 'NFL.com', 'NFL'),
-      fetchRSS('https://www.espn.com/espn/rss/fantasy', 'ESPN Fantasy', 'Fantasy'),
-    ]),
-    fetchRedditRSS('fantasyfootball'),
+  // Reddit is fetched client-side (see RedditFeed component) because Reddit
+  // rate-limits Vercel's shared serverless IPs aggressively — each visitor's
+  // own IP hits Reddit directly instead.
+  const feeds = await Promise.all([
+    fetchRSS('https://www.espn.com/espn/rss/nfl/news', 'ESPN', 'NFL'),
+    fetchRSS('https://www.nfl.com/rss/rsslanding?searchString=home', 'NFL.com', 'NFL'),
+    fetchRSS('https://www.espn.com/espn/rss/fantasy', 'ESPN Fantasy', 'Fantasy'),
   ]);
 
   const allNews = feeds
@@ -29,7 +29,7 @@ export default async function NewsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <PageHeader title="News & Updates" subtitle="Stay up to date with NFL, fantasy, and league news" />
-      <NewsFeed news={allNews} blogPosts={BLOG_POSTS} redditPosts={redditPosts} />
+      <NewsFeed news={allNews} blogPosts={BLOG_POSTS} />
     </div>
   );
 }
