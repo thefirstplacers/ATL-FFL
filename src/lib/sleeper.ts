@@ -1,9 +1,19 @@
-import { SleeperLeague, SleeperUser, SleeperRoster, SleeperMatchup, SleeperTransaction, SleeperDraft, SleeperDraftPick, BracketMatch } from './types';
+import {
+  SleeperLeague,
+  SleeperUser,
+  SleeperRoster,
+  SleeperMatchup,
+  SleeperTransaction,
+  SleeperDraft,
+  SleeperDraftPick,
+  BracketMatch,
+} from './types';
 
 const BASE_URL = 'https://api.sleeper.app/v1';
+const DEFAULT_REVALIDATE = 3600;
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { next: { revalidate: 3600 } }); // cache 1 hour
+async function fetchJson<T>(url: string, revalidate: number = DEFAULT_REVALIDATE): Promise<T> {
+  const res = await fetch(url, { next: { revalidate } });
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
   return res.json();
 }
@@ -24,19 +34,17 @@ export async function getMatchups(leagueId: string, week: number): Promise<Sleep
   return fetchJson(`${BASE_URL}/league/${leagueId}/matchups/${week}`);
 }
 
-export async function getAllMatchups(leagueId: string, weeks: number = 17): Promise<Record<number, SleeperMatchup[]>> {
+export async function getAllMatchups(
+  leagueId: string,
+  weeks: number = 17,
+): Promise<Record<number, SleeperMatchup[]>> {
   const results: Record<number, SleeperMatchup[]> = {};
-  const promises = Array.from({ length: weeks }, (_, i) => i + 1).map(async (week) => {
-    try {
-      const matchups = await getMatchups(leagueId, week);
-      if (matchups && matchups.length > 0) {
-        results[week] = matchups;
-      }
-    } catch {
-      // Week may not exist
-    }
+  const settled = await Promise.allSettled(
+    Array.from({ length: weeks }, (_, i) => i + 1).map((week) => getMatchups(leagueId, week)),
+  );
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value.length > 0) results[i + 1] = r.value;
   });
-  await Promise.all(promises);
   return results;
 }
 
@@ -44,12 +52,18 @@ export async function getTransactions(leagueId: string, week: number): Promise<S
   return fetchJson(`${BASE_URL}/league/${leagueId}/transactions/${week}`);
 }
 
-export async function getAllTransactions(leagueId: string, weeks: number = 17): Promise<SleeperTransaction[]> {
-  const promises = Array.from({ length: weeks }, (_, i) => i + 1).map((week) =>
-    getTransactions(leagueId, week).catch(() => [] as SleeperTransaction[])
+export async function getAllTransactions(
+  leagueId: string,
+  weeks: number = 17,
+): Promise<SleeperTransaction[]> {
+  const settled = await Promise.allSettled(
+    Array.from({ length: weeks }, (_, i) => i + 1).map((week) => getTransactions(leagueId, week)),
   );
-  const results = await Promise.all(promises);
-  return results.flat().sort((a, b) => b.created - a.created);
+  const out: SleeperTransaction[] = [];
+  for (const r of settled) {
+    if (r.status === 'fulfilled') out.push(...r.value);
+  }
+  return out.sort((a, b) => b.created - a.created);
 }
 
 export async function getWinnersBracket(leagueId: string): Promise<BracketMatch[]> {
@@ -68,24 +82,88 @@ export async function getDraftPicks(draftId: string): Promise<SleeperDraftPick[]
   return fetchJson(`${BASE_URL}/draft/${draftId}/picks`);
 }
 
-export async function getPlayerInfo(playerId: string): Promise<Record<string, unknown>> {
-  // The full players endpoint is very large; use it sparingly
-  return fetchJson(`${BASE_URL}/players/nfl`);
+export async function getTrendingPlayers(
+  sport: 'nfl' = 'nfl',
+  type: 'add' | 'drop' = 'add',
+  limit = 25,
+): Promise<Array<{ player_id: string; count: number }>> {
+  return fetchJson(
+    `${BASE_URL}/players/${sport}/trending/${type}?limit=${limit}`,
+    6 * 60 * 60,
+  );
 }
 
-// Get avatar URL from Sleeper
+export interface SeasonBundle {
+  leagueId: string;
+  season: string;
+  rosters: SleeperRoster[];
+  users: SleeperUser[];
+  league: SleeperLeague;
+}
+
+export async function getAllTimeData(leagueIds: string[]): Promise<SeasonBundle[]> {
+  const settled = await Promise.allSettled(
+    leagueIds.map(async (id): Promise<SeasonBundle> => {
+      const [league, rosters, users] = await Promise.all([
+        getLeague(id),
+        getRosters(id),
+        getUsers(id),
+      ]);
+      return { leagueId: id, season: league.season, rosters, users, league };
+    }),
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<SeasonBundle> => r.status === 'fulfilled')
+    .map((r) => r.value);
+}
+
+export interface SeasonWithMatchups extends SeasonBundle {
+  allMatchups: Record<number, SleeperMatchup[]>;
+}
+
+// Fetches season bundles AND all weekly matchups in one go, all in parallel.
+// Used by pages (rankings, records, rivalry, teams/[id]) that were previously
+// fetching seasons sequentially, then matchups sequentially per season — an N+1
+// pattern that was costing multi-second page loads.
+export async function getAllTimeDataWithMatchups(
+  leagueIds: string[],
+  weeks: number,
+): Promise<SeasonWithMatchups[]> {
+  const settled = await Promise.allSettled(
+    leagueIds.map(async (id): Promise<SeasonWithMatchups> => {
+      const [league, rosters, users, allMatchups] = await Promise.all([
+        getLeague(id),
+        getRosters(id),
+        getUsers(id),
+        getAllMatchups(id, weeks),
+      ]);
+      return { leagueId: id, season: league.season, rosters, users, league, allMatchups };
+    }),
+  );
+  return settled
+    .filter((r): r is PromiseFulfilledResult<SeasonWithMatchups> => r.status === 'fulfilled')
+    .map((r) => r.value);
+}
+
 export function getAvatarUrl(avatarId: string | null): string {
   if (!avatarId) return '/managers/question.jpg';
   return `https://sleepercdn.com/avatars/thumbs/${avatarId}`;
 }
 
-// Build team data combining rosters and users
+export interface TeamInfo {
+  ownerId: string;
+  coOwners: string[];
+  displayName: string;
+  teamName: string;
+  avatar: string | null;
+}
+
 export function buildTeamMap(
   rosters: SleeperRoster[],
-  users: SleeperUser[]
-): Map<number, { ownerId: string; coOwners: string[]; displayName: string; teamName: string; avatar: string | null }> {
+  users: SleeperUser[],
+): Map<number, TeamInfo> {
   const userMap = new Map(users.map((u) => [u.user_id, u]));
-  const teamMap = new Map<number, { ownerId: string; coOwners: string[]; displayName: string; teamName: string; avatar: string | null }>();
+  const teamMap = new Map<number, TeamInfo>();
 
   for (const roster of rosters) {
     const owner = userMap.get(roster.owner_id);
@@ -102,8 +180,9 @@ export function buildTeamMap(
   return teamMap;
 }
 
-// Parse matchups into paired matchups
-export function pairMatchups(matchups: SleeperMatchup[]): Array<{ matchupId: number; team1: SleeperMatchup; team2: SleeperMatchup }> {
+export function pairMatchups(
+  matchups: SleeperMatchup[],
+): Array<{ matchupId: number; team1: SleeperMatchup; team2: SleeperMatchup }> {
   const byMatchupId = new Map<number, SleeperMatchup[]>();
   for (const m of matchups) {
     if (!m.matchup_id) continue;

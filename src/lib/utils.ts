@@ -8,12 +8,31 @@ export function getManagerInfo(ownerId: string) {
   return MANAGER_INFO[ownerId] || null;
 }
 
+export function getManagerPhoto(ownerId: string): string {
+  return MANAGER_INFO[ownerId]?.photo || '/managers/question.jpg';
+}
+
 export function getManagerDisplayName(ownerId: string, displayName: string): string {
   const info = MANAGER_INFO[ownerId];
   if (info) {
     return info.coManagerName ? `${info.name} & ${info.coManagerName}` : info.name;
   }
   return displayName;
+}
+
+// Warn once per build about owners that appear in the league but aren't in
+// MANAGER_INFO — surfaces stale constants after a league roster change without
+// breaking the page, so the site keeps rendering with fallback data.
+const _warnedOwners = new Set<string>();
+export function warnUnknownOwner(ownerId: string, displayName?: string): void {
+  if (!ownerId || _warnedOwners.has(ownerId)) return;
+  if (MANAGER_INFO[ownerId]) return;
+  _warnedOwners.add(ownerId);
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      `[manager-info] Unknown owner_id: ${ownerId}${displayName ? ` (${displayName})` : ''} — add entry to src/lib/constants.ts MANAGER_INFO`,
+    );
+  }
 }
 
 export function formatPoints(points: number): string {

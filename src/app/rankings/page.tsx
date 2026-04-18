@@ -1,153 +1,144 @@
-import { getRosters, getUsers, getAllMatchups, buildTeamMap, pairMatchups } from '@/lib/sleeper';
-import { PREV_LEAGUE_ID, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
-import { getManagerDisplayName, formatPoints } from '@/lib/utils';
+import type { Metadata } from 'next';
+import { buildTeamMap, getAllTimeDataWithMatchups } from '@/lib/sleeper';
+import { ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
+import { getManagerDisplayName, getManagerPhoto } from '@/lib/utils';
+import type { SleeperRoster, SleeperUser, SleeperMatchup } from '@/lib/types';
 import PageHeader from '@/components/ui/PageHeader';
+import RankingsSeasonView from '@/components/RankingsSeasonView';
 
 export const revalidate = 3600;
 
-export default async function RankingsPage() {
-  const [rosters, users, allMatchups] = await Promise.all([
-    getRosters(PREV_LEAGUE_ID),
-    getUsers(PREV_LEAGUE_ID),
-    getAllMatchups(PREV_LEAGUE_ID, REGULAR_SEASON_WEEKS),
-  ]);
+export const metadata: Metadata = {
+  title: 'Power Rankings · ATL FFL',
+  description: 'Algorithmic power rankings combining win %, points scored, schedule strength, consistency, and recent form.',
+};
 
+interface RankingEntry {
+  rosterId: number;
+  ownerId: string;
+  name: string;
+  teamName: string;
+  photo: string;
+  wins: number;
+  losses: number;
+  fpts: number;
+  powerScore: number;
+  winPct: number;
+  ptsScore: number;
+  schedScore: number;
+  consistScore: number;
+  recentScore: number;
+}
+
+// Weights sum to 100; tuned so a dominant team (high W%, high PF, consistent
+// scoring) separates clearly from a lucky one (high W%, low PF, volatile).
+const WEIGHT_WIN = 30;
+const WEIGHT_POINTS = 25;
+const WEIGHT_SCHEDULE = 15;
+const WEIGHT_CONSISTENCY = 15;
+const WEIGHT_RECENT = 15;
+
+// 30 pts is ~1 standard deviation for a typical fantasy team over a season.
+// Larger values mean more volatile weekly scoring — clamp to [0, 1] so elite
+// consistency (sub-30 σ) maps to 1.0 and chaos (σ > 30) maps to 0.
+const CONSISTENCY_STDDEV_CAP = 30;
+
+// Recent-form normalizer: the top scorer's season-average PPG × 1.2 gives us
+// a slightly-above-best benchmark, so teams scoring close to the league leader
+// over the last 4 weeks score near 1.0.
+const RECENT_FORM_CEILING_MULTIPLIER = 1.2;
+
+function computeRankings(
+  rosters: SleeperRoster[],
+  users: SleeperUser[],
+  allMatchups: Record<number, SleeperMatchup[]>,
+): RankingEntry[] {
   const teamMap = buildTeamMap(rosters, users);
 
-  // Calculate power rankings
-  // Factors: Win%, Points For (normalized), Points Against (inverted/normalized), Consistency, Recent Form
-  const maxPF = Math.max(...rosters.map(r => (r.settings.fpts || 0) + ((r.settings.fpts_decimal || 0) / 100)));
-  const minPF = Math.min(...rosters.map(r => (r.settings.fpts || 0) + ((r.settings.fpts_decimal || 0) / 100)));
-  const maxPA = Math.max(...rosters.map(r => (r.settings.fpts_against || 0) + ((r.settings.fpts_against_decimal || 0) / 100)));
-  const minPA = Math.min(...rosters.map(r => (r.settings.fpts_against || 0) + ((r.settings.fpts_against_decimal || 0) / 100)));
+  const fptsOf = (r: SleeperRoster) => (r.settings.fpts || 0) + ((r.settings.fpts_decimal || 0) / 100);
+  const fptsAgainstOf = (r: SleeperRoster) =>
+    (r.settings.fpts_against || 0) + ((r.settings.fpts_against_decimal || 0) / 100);
 
-  // Weekly scores for consistency calc
+  const maxPF = Math.max(...rosters.map(fptsOf));
+  const minPF = Math.min(...rosters.map(fptsOf));
+  const maxPA = Math.max(...rosters.map(fptsAgainstOf));
+  const minPA = Math.min(...rosters.map(fptsAgainstOf));
+
   const weeklyScoresByRoster: Record<number, number[]> = {};
-  for (const [, matchups] of Object.entries(allMatchups)) {
+  for (const matchups of Object.values(allMatchups)) {
     for (const m of matchups) {
-      if (!weeklyScoresByRoster[m.roster_id]) weeklyScoresByRoster[m.roster_id] = [];
-      weeklyScoresByRoster[m.roster_id].push(m.points);
+      (weeklyScoresByRoster[m.roster_id] ??= []).push(m.points);
     }
   }
 
-  const rankings = rosters.map((roster) => {
-    const team = teamMap.get(roster.roster_id);
-    const manager = MANAGER_INFO[roster.owner_id];
-    const fpts = (roster.settings.fpts || 0) + ((roster.settings.fpts_decimal || 0) / 100);
-    const fptsAgainst = (roster.settings.fpts_against || 0) + ((roster.settings.fpts_against_decimal || 0) / 100);
-    const totalGames = roster.settings.wins + roster.settings.losses;
+  return rosters
+    .map((roster): RankingEntry => {
+      const team = teamMap.get(roster.roster_id);
+      const manager = MANAGER_INFO[roster.owner_id];
+      const fpts = fptsOf(roster);
+      const fptsAgainst = fptsAgainstOf(roster);
+      const totalGames = roster.settings.wins + roster.settings.losses;
 
-    // Win percentage (30% weight)
-    const winPct = totalGames > 0 ? roster.settings.wins / totalGames : 0;
+      const winPct = totalGames > 0 ? roster.settings.wins / totalGames : 0;
+      const ptsNorm = maxPF !== minPF ? (fpts - minPF) / (maxPF - minPF) : 0.5;
+      const schedNorm = maxPA !== minPA ? (fptsAgainst - minPA) / (maxPA - minPA) : 0.5;
 
-    // Points normalized (25% weight)
-    const ptsNorm = maxPF !== minPF ? (fpts - minPF) / (maxPF - minPF) : 0.5;
+      const scores = weeklyScoresByRoster[roster.roster_id] || [];
+      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+      const stdDev =
+        scores.length > 0
+          ? Math.sqrt(scores.reduce((sum, s) => sum + (s - avg) ** 2, 0) / scores.length)
+          : 0;
+      const consistencyNorm = 1 - Math.min(stdDev / CONSISTENCY_STDDEV_CAP, 1);
 
-    // Schedule difficulty - PA normalized (15% weight, higher PA = harder schedule)
-    const schedNorm = maxPA !== minPA ? (fptsAgainst - minPA) / (maxPA - minPA) : 0.5;
+      const last4 = scores.slice(-4);
+      const last4Avg = last4.length > 0 ? last4.reduce((a, b) => a + b, 0) / last4.length : 0;
+      const ceiling = (maxPF / REGULAR_SEASON_WEEKS) * RECENT_FORM_CEILING_MULTIPLIER;
+      const recentNorm = ceiling > 0 ? Math.min(last4Avg / ceiling, 1) : 0;
 
-    // Consistency - lower std dev is better (15% weight)
-    const scores = weeklyScoresByRoster[roster.roster_id] || [];
-    const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-    const stdDev = scores.length > 0
-      ? Math.sqrt(scores.reduce((sum, s) => sum + Math.pow(s - avg, 2), 0) / scores.length)
-      : 0;
-    const maxStdDev = 30; // rough max
-    const consistencyNorm = 1 - Math.min(stdDev / maxStdDev, 1);
+      const powerScore =
+        winPct * WEIGHT_WIN +
+        ptsNorm * WEIGHT_POINTS +
+        schedNorm * WEIGHT_SCHEDULE +
+        consistencyNorm * WEIGHT_CONSISTENCY +
+        recentNorm * WEIGHT_RECENT;
 
-    // Recent form - last 4 weeks (15% weight)
-    const last4 = scores.slice(-4);
-    const last4Avg = last4.length > 0 ? last4.reduce((a, b) => a + b, 0) / last4.length : 0;
-    const recentNorm = maxPF > 0 ? (last4Avg / (maxPF / REGULAR_SEASON_WEEKS * 1.2)) : 0;
+      return {
+        rosterId: roster.roster_id,
+        ownerId: roster.owner_id,
+        name: getManagerDisplayName(roster.owner_id, team?.displayName || ''),
+        teamName: team?.teamName || '',
+        photo: manager?.photo || getManagerPhoto(roster.owner_id),
+        wins: roster.settings.wins,
+        losses: roster.settings.losses,
+        fpts,
+        powerScore,
+        winPct: winPct * 100,
+        ptsScore: ptsNorm * 100,
+        schedScore: schedNorm * 100,
+        consistScore: consistencyNorm * 100,
+        recentScore: recentNorm * 100,
+      };
+    })
+    .sort((a, b) => b.powerScore - a.powerScore);
+}
 
-    const powerScore = (
-      winPct * 30 +
-      ptsNorm * 25 +
-      schedNorm * 15 +
-      consistencyNorm * 15 +
-      Math.min(recentNorm, 1) * 15
-    );
+export default async function RankingsPage() {
+  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
+  const seasons = await getAllTimeDataWithMatchups(completedLeagueIds, REGULAR_SEASON_WEEKS);
 
-    return {
-      rosterId: roster.roster_id,
-      ownerId: roster.owner_id,
-      name: getManagerDisplayName(roster.owner_id, team?.displayName || ''),
-      teamName: team?.teamName || '',
-      photo: manager?.photo || '/managers/question.jpg',
-      wins: roster.settings.wins,
-      losses: roster.settings.losses,
-      fpts,
-      fptsAgainst,
-      powerScore,
-      winPct: (winPct * 100),
-      ptsScore: (ptsNorm * 100),
-      schedScore: (schedNorm * 100),
-      consistScore: (consistencyNorm * 100),
-      recentScore: (Math.min(recentNorm, 1) * 100),
-      avg,
-      stdDev,
-    };
-  }).sort((a, b) => b.powerScore - a.powerScore);
-
-  const maxPower = rankings[0]?.powerScore || 1;
+  const seasonRankings: Record<string, RankingEntry[]> = {};
+  for (const s of seasons) {
+    seasonRankings[s.season] = computeRankings(s.rosters, s.users, s.allMatchups);
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <PageHeader title="Power Rankings" subtitle="2025 Season - Algorithm-Based Rankings" />
-
+      <PageHeader title="Power Rankings" subtitle="Algorithm-Based Rankings by Season" />
       <div className="glass-card p-4 mb-6 text-text-secondary text-sm">
-        <strong className="text-gold">Methodology:</strong> Win% (30%) + Points Scored (25%) + Schedule Difficulty (15%) + Consistency (15%) + Recent Form (15%)
+        <strong className="text-gold">Methodology:</strong> Win% ({WEIGHT_WIN}%) + Points Scored ({WEIGHT_POINTS}%) + Schedule Difficulty ({WEIGHT_SCHEDULE}%) + Consistency ({WEIGHT_CONSISTENCY}%) + Recent Form ({WEIGHT_RECENT}%)
       </div>
-
-      <div className="space-y-4">
-        {rankings.map((team, i) => {
-          const barWidth = (team.powerScore / maxPower) * 100;
-          return (
-            <div key={team.rosterId} className="glass-card p-5">
-              <div className="flex items-center gap-4 mb-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${
-                  i === 0 ? 'bg-gold text-navy' :
-                  i === 1 ? 'bg-gray-300 text-navy' :
-                  i === 2 ? 'bg-amber-700 text-white' :
-                  'bg-navy-lighter text-text-muted'
-                }`}>
-                  {i + 1}
-                </div>
-                <img src={team.photo} alt={team.name} className="w-12 h-12 rounded-full object-cover" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg">{team.name}</h3>
-                  <p className="text-text-muted text-sm">{team.teamName} &middot; {team.wins}-{team.losses}</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-black text-gold">{team.powerScore.toFixed(1)}</div>
-                  <div className="text-text-muted text-xs">Power Score</div>
-                </div>
-              </div>
-
-              {/* Power bar */}
-              <div className="w-full bg-navy rounded-full h-3 mb-3">
-                <div className="h-full rounded-full bg-gradient-to-r from-gold-dark to-gold transition-all" style={{ width: `${barWidth}%` }} />
-              </div>
-
-              {/* Stat breakdown */}
-              <div className="grid grid-cols-5 gap-3 text-center">
-                {[
-                  { label: 'Win%', value: team.winPct.toFixed(0), color: 'text-success' },
-                  { label: 'Scoring', value: team.ptsScore.toFixed(0), color: 'text-gold' },
-                  { label: 'Schedule', value: team.schedScore.toFixed(0), color: 'text-info' },
-                  { label: 'Consistency', value: team.consistScore.toFixed(0), color: 'text-purple-400' },
-                  { label: 'Recent', value: team.recentScore.toFixed(0), color: 'text-orange-400' },
-                ].map((stat) => (
-                  <div key={stat.label}>
-                    <div className={`text-sm font-bold ${stat.color}`}>{stat.value}</div>
-                    <div className="text-text-muted text-xs">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <RankingsSeasonView seasonRankings={seasonRankings} />
     </div>
   );
 }

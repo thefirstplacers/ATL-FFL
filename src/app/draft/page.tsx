@@ -1,67 +1,74 @@
-import { getDrafts, getDraftPicks, getRosters, getUsers, buildTeamMap } from '@/lib/sleeper';
-import { PREV_LEAGUE_ID, MANAGER_INFO } from '@/lib/constants';
+import type { Metadata } from 'next';
+import { getDrafts, getDraftPicks, buildTeamMap, getAllTimeData } from '@/lib/sleeper';
+import { ALL_LEAGUE_IDS } from '@/lib/constants';
 import { getManagerDisplayName } from '@/lib/utils';
 import PageHeader from '@/components/ui/PageHeader';
+import DraftSeasonView from '@/components/DraftSeasonView';
 
 export const revalidate = 3600;
 
+export const metadata: Metadata = {
+  title: 'Draft Central · ATL FFL',
+  description: 'Draft history for every season and prep info for the upcoming draft.',
+};
+
+interface DraftPickData {
+  pickNo: number;
+  round: number;
+  playerName: string;
+  position: string;
+  nflTeam: string;
+  draftedBy: string;
+  ownerId: string;
+}
+
+async function getSeasonDraft(leagueId: string): Promise<Awaited<ReturnType<typeof getDraftPicks>>> {
+  try {
+    const drafts = await getDrafts(leagueId);
+    if (drafts.length === 0) return [];
+    return await getDraftPicks(drafts[0].draft_id);
+  } catch {
+    return [];
+  }
+}
+
 export default async function DraftPage() {
-  const [drafts, rosters, users] = await Promise.all([
-    getDrafts(PREV_LEAGUE_ID),
-    getRosters(PREV_LEAGUE_ID),
-    getUsers(PREV_LEAGUE_ID),
-  ]);
+  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
+  const allTimeData = await getAllTimeData(completedLeagueIds);
 
-  const teamMap = buildTeamMap(rosters, users);
+  const draftsPerSeason = await Promise.all(allTimeData.map((s) => getSeasonDraft(s.leagueId)));
 
-  // Get the most recent draft picks
-  let draftPicks: Array<{
-    round: number;
-    pick_no: number;
-    player_id: string;
-    roster_id: number;
-    metadata?: { first_name?: string; last_name?: string; team?: string; position?: string };
-  }> = [];
-  if (drafts.length > 0) {
-    try {
-      draftPicks = await getDraftPicks(drafts[0].draft_id);
-    } catch {
-      // Draft picks may not be available
-    }
-  }
-
-  // Keeper info from current rosters
-  const keepers = rosters.filter(r => {
-    // Check if roster has any keeper-related metadata
-    return false; // We'll check 2026 rosters for keepers
+  const seasonDrafts: Record<string, DraftPickData[]> = {};
+  allTimeData.forEach((seasonData, i) => {
+    const picks = draftsPerSeason[i];
+    if (picks.length === 0) return;
+    const teamMap = buildTeamMap(seasonData.rosters, seasonData.users);
+    seasonDrafts[seasonData.season] = picks.map((pick) => {
+      const roster = seasonData.rosters.find((r) => r.roster_id === pick.roster_id);
+      const team = teamMap.get(pick.roster_id);
+      return {
+        pickNo: pick.pick_no,
+        round: pick.round,
+        playerName: `${pick.metadata?.first_name || ''} ${pick.metadata?.last_name || ''}`.trim() || pick.player_id,
+        position: pick.metadata?.position || '?',
+        nflTeam: pick.metadata?.team || '?',
+        draftedBy: getManagerDisplayName(roster?.owner_id || '', team?.displayName || ''),
+        ownerId: roster?.owner_id || '',
+      };
+    });
   });
-
-  // Group picks by round
-  const picksByRound: Record<number, typeof draftPicks> = {};
-  for (const pick of draftPicks) {
-    if (!picksByRound[pick.round]) picksByRound[pick.round] = [];
-    picksByRound[pick.round].push(pick);
-  }
-
-  const getName = (rosterId: number) => {
-    const roster = rosters.find(r => r.roster_id === rosterId);
-    const team = teamMap.get(rosterId);
-    return getManagerDisplayName(roster?.owner_id || '', team?.displayName || '');
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <PageHeader title="Draft Central" subtitle="2026 Draft Prep & 2025 Draft Results" />
+      <PageHeader title="Draft Central" subtitle="Draft History & Upcoming Draft Prep" />
 
-      {/* Offseason Banner */}
       <div className="glass-card p-6 mb-8 bg-gradient-to-r from-gold/10 to-info/10 border-gold/20">
         <div className="flex items-start gap-4">
-          <div className="text-4xl">📋</div>
+          <div className="text-4xl" aria-hidden="true">📋</div>
           <div>
-            <h2 className="text-xl font-bold text-gold">2026 Draft Prep</h2>
+            <h2 className="text-xl font-bold text-gold">Draft Prep</h2>
             <p className="text-text-secondary mt-2">
-              The 2026 draft is approaching! Each team can keep 1 player from their 2025 roster.
-              Start scouting rookies and plan your draft strategy. The draft is scheduled for August 2026.
+              Each team can keep 1 player from last season&apos;s roster. Start scouting rookies and plan your draft strategy.
             </p>
             <div className="mt-4 flex flex-wrap gap-4">
               <div className="bg-navy rounded-lg px-4 py-2">
@@ -81,17 +88,15 @@ export default async function DraftPage() {
         </div>
       </div>
 
-      {/* 2026 Rookie Watch */}
       <div className="glass-card overflow-hidden mb-8">
         <div className="px-6 py-4 border-b border-border/30">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <span>🌟</span> 2026 Rookie Watch
+            <span aria-hidden="true">🌟</span> Rookie Watch
           </h2>
         </div>
         <div className="p-6">
           <p className="text-text-secondary mb-4">
-            Keep an eye on these positions in the upcoming NFL Draft. Top rookies at skill positions
-            can make an immediate fantasy impact in our league format.
+            Top rookies at skill positions can make an immediate fantasy impact in our league format.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
@@ -108,52 +113,7 @@ export default async function DraftPage() {
         </div>
       </div>
 
-      {/* 2025 Draft Results */}
-      {draftPicks.length > 0 && (
-        <div className="glass-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-border/30">
-            <h2 className="text-xl font-bold">2025 Draft Results</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="stats-table">
-              <thead>
-                <tr>
-                  <th>Pick</th>
-                  <th>Round</th>
-                  <th>Player</th>
-                  <th>Pos</th>
-                  <th>NFL Team</th>
-                  <th>Drafted By</th>
-                </tr>
-              </thead>
-              <tbody>
-                {draftPicks.map((pick) => (
-                  <tr key={pick.pick_no}>
-                    <td className="font-bold text-text-muted">{pick.pick_no}</td>
-                    <td className="text-text-secondary">{pick.round}</td>
-                    <td className="font-medium">
-                      {pick.metadata?.first_name} {pick.metadata?.last_name}
-                    </td>
-                    <td>
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface text-text-secondary">
-                        {pick.metadata?.position || '?'}
-                      </span>
-                    </td>
-                    <td className="text-text-secondary">{pick.metadata?.team || '?'}</td>
-                    <td className="text-gold">{getName(pick.roster_id)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {draftPicks.length === 0 && (
-        <div className="glass-card p-8 text-center">
-          <p className="text-text-muted">Draft results will be available once the 2025 draft data is loaded from Sleeper.</p>
-        </div>
-      )}
+      <DraftSeasonView seasonDrafts={seasonDrafts} />
     </div>
   );
 }

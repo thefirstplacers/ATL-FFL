@@ -1,8 +1,25 @@
 export const LEAGUE_ID = '1313984141653463040'; // 2026 (current)
 export const PREV_LEAGUE_ID = '1249972596817014784'; // 2025
 
+// Full league history chain (Sleeper era)
+export const LEAGUE_HISTORY: Record<string, { id: string; season: number; champion: string; championRosterId: number }> = {
+  '2022': { id: '869629467407085568', season: 2022, champion: 'JWill30 (Justin Williams)', championRosterId: 4 },
+  '2023': { id: '994777154728611840', season: 2023, champion: 'zachrmiller (Zach Miller)', championRosterId: 2 },
+  '2024': { id: '1048835236085313536', season: 2024, champion: 'jabrams823 (Jordan Abrams)', championRosterId: 7 },
+  '2025': { id: '1249972596817014784', season: 2025, champion: 'htibill (Bill & Grayson)', championRosterId: 9 },
+};
+
+// All league IDs in chronological order
+export const ALL_LEAGUE_IDS = [
+  '869629467407085568',   // 2022
+  '994777154728611840',   // 2023
+  '1048835236085313536',  // 2024
+  '1249972596817014784',  // 2025
+  '1313984141653463040',  // 2026
+];
+
 export const LEAGUE_NAME = 'ATL FFL';
-export const LEAGUE_EST = 2019;
+export const LEAGUE_EST = 2019; // Originally on ESPN, moved to Sleeper in 2022
 
 export const DIVISIONS: Record<number, string> = {
   1: 'The Hokage',
@@ -69,7 +86,7 @@ export const MANAGER_INFO: Record<string, {
     favoriteTeam: 'atl',
     fantasyStart: 2014,
     bio: 'the Unicorns - 2025 Champions!',
-    mode: 'Win Now',
+    mode: 'Contender',
     rivalName: 'Everyone',
     rivalPhoto: '/managers/everyone.png',
     philosophy: 'Consistency is key',
@@ -82,10 +99,10 @@ export const MANAGER_INFO: Record<string, {
     coManagerName: 'Melissa',
     location: 'Atlanta',
     photo: '/managers/grantmelissa1.jpg',
-    favoriteTeam: 'min',
+    favoriteTeam: 'kc',
     fantasyStart: null,
     bio: 'Commissioner',
-    mode: 'Win Now',
+    mode: 'Small Market',
     rivalName: 'Tyler',
     rivalPhoto: '/managers/tyler.jpg',
     philosophy: 'There is nothing impossible to him who will try',
@@ -100,7 +117,7 @@ export const MANAGER_INFO: Record<string, {
     favoriteTeam: 'dal',
     fantasyStart: 2021,
     bio: 'Lord of the Scraps',
-    mode: 'Win Now',
+    mode: 'Rebuild',
     rivalName: 'Garrett',
     rivalPhoto: '/managers/garrett1.jpg',
     philosophy: '',
@@ -115,7 +132,7 @@ export const MANAGER_INFO: Record<string, {
     favoriteTeam: 'atl',
     fantasyStart: 2021,
     bio: 'Thank you, thank you',
-    mode: 'Win Now',
+    mode: 'Dynasty',
     rivalName: 'Jim',
     rivalPhoto: '/managers/jim.jpg',
     philosophy: '',
@@ -127,10 +144,10 @@ export const MANAGER_INFO: Record<string, {
     name: 'Garrett Davis',
     location: 'Atlanta',
     photo: '/managers/garrett1.jpg',
-    favoriteTeam: 'nyj',
+    favoriteTeam: 'atl',
     fantasyStart: 2015,
     bio: 'Egbukake',
-    mode: 'Rebuild',
+    mode: 'Playoff Team',
     rivalName: 'League Champ',
     rivalPhoto: '/managers/zach.jpg',
     philosophy: '',
@@ -145,7 +162,7 @@ export const MANAGER_INFO: Record<string, {
     favoriteTeam: 'atl',
     fantasyStart: 2012,
     bio: 'Illegally LaPorted',
-    mode: 'Win Now',
+    mode: 'Small Market',
     rivalName: 'Garrett',
     rivalPhoto: '/managers/garrett1.jpg',
     philosophy: '',
@@ -157,10 +174,10 @@ export const MANAGER_INFO: Record<string, {
     name: 'Zach Miller',
     location: 'Atlanta',
     photo: '/managers/zach.jpg',
-    favoriteTeam: 'gb',
+    favoriteTeam: 'atl',
     fantasyStart: 2015,
     bio: 'Best to Worst',
-    mode: 'Win Now',
+    mode: 'Dynasty',
     rivalName: 'Garrett',
     rivalPhoto: '/managers/garrett1.jpg',
     philosophy: '',
@@ -169,13 +186,13 @@ export const MANAGER_INFO: Record<string, {
     favoritePosition: 'QB',
   },
   '857978234233556992': {
-    name: 'Sasan Sims',
+    name: 'Matt Sims',
     location: 'Atlanta',
-    photo: '/managers/sasan.jpg',
+    photo: '/managers/question.jpg',
     favoriteTeam: 'atl',
-    fantasyStart: 2019,
-    bio: '',
-    mode: 'Rebuild',
+    fantasyStart: 2024,
+    bio: 'Wife Beater',
+    mode: 'Tanking',
     rivalName: 'Everyone',
     rivalPhoto: '/managers/everyone.png',
     philosophy: '',
@@ -187,10 +204,10 @@ export const MANAGER_INFO: Record<string, {
     name: 'Justin Williams',
     location: 'Atlanta',
     photo: '/managers/justin.jpg',
-    favoriteTeam: 'atl',
+    favoriteTeam: 'car',
     fantasyStart: 2019,
     bio: "'25-'26 CHAMPION (self-proclaimed)",
-    mode: 'Win Now',
+    mode: 'Contender',
     rivalName: 'Grant',
     rivalPhoto: '/managers/grantmelissa1.jpg',
     philosophy: '',
@@ -218,7 +235,7 @@ export const MANAGER_INFO: Record<string, {
     name: 'Tyler',
     location: 'Atlanta',
     photo: '/managers/tyler.jpg',
-    favoriteTeam: 'atl',
+    favoriteTeam: 'car',
     fantasyStart: 2019,
     bio: 'I cry evrytim :,(',
     mode: 'Rebuild',
@@ -233,10 +250,10 @@ export const MANAGER_INFO: Record<string, {
     name: 'Jim',
     location: 'Atlanta',
     photo: '/managers/jim.jpg',
-    favoriteTeam: 'tb',
+    favoriteTeam: 'chi',
     fantasyStart: 2019,
     bio: "Buck-ees Bucs",
-    mode: 'Win Now',
+    mode: 'Rebuild',
     rivalName: 'Jordan',
     rivalPhoto: '/managers/jordan.jpg',
     philosophy: '',

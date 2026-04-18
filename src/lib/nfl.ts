@@ -41,3 +41,28 @@ export const FAVORITE_TEAM_MAP: Record<string, string> = {
   nyj: 'NYJ', phi: 'PHI', pit: 'PIT', sea: 'SEA', sf: 'SF', tb: 'TB',
   ten: 'TEN', was: 'WAS',
 };
+
+// Sleeper CDN hosts team logos
+export function getTeamLogoUrl(abbr: string): string {
+  // Sleeper uses lowercase abbreviation for logos
+  const sleeperMap: Record<string, string> = {
+    ARI: 'ARI', ATL: 'ATL', BAL: 'BAL', BUF: 'BUF', CAR: 'CAR', CHI: 'CHI',
+    CIN: 'CIN', CLE: 'CLE', DAL: 'DAL', DEN: 'DEN', DET: 'DET', GB: 'GB',
+    HOU: 'HOU', IND: 'IND', JAX: 'JAX', KC: 'KC', LAC: 'LAC', LAR: 'LAR',
+    LV: 'LV', MIA: 'MIA', MIN: 'MIN', NE: 'NE', NO: 'NO', NYG: 'NYG',
+    NYJ: 'NYJ', PHI: 'PHI', PIT: 'PIT', SEA: 'SEA', SF: 'SF', TB: 'TB',
+    TEN: 'TEN', WAS: 'WAS',
+  };
+  const key = sleeperMap[abbr] || abbr;
+  return `https://sleepercdn.com/images/team_logos/nfl/${key.toLowerCase()}.png`;
+}
+
+// Mode tier styling
+export const MODE_STYLES: Record<string, { color: string; bg: string }> = {
+  'Dynasty': { color: 'text-yellow-400', bg: 'bg-yellow-400/20' },
+  'Contender': { color: 'text-green-400', bg: 'bg-green-400/20' },
+  'Playoff Team': { color: 'text-blue-400', bg: 'bg-blue-400/20' },
+  'Small Market': { color: 'text-gray-400', bg: 'bg-gray-400/20' },
+  'Rebuild': { color: 'text-orange-400', bg: 'bg-orange-400/20' },
+  'Tanking': { color: 'text-red-400', bg: 'bg-red-400/20' },
+};

@@ -1,178 +1,111 @@
-import { getRosters, getUsers, buildTeamMap } from '@/lib/sleeper';
-import { PREV_LEAGUE_ID, DIVISIONS, DIVISION_COLORS } from '@/lib/constants';
-import { getManagerDisplayName, formatPoints, formatRecord, getWinPercentage } from '@/lib/utils';
-import { MANAGER_INFO } from '@/lib/constants';
+import type { Metadata } from 'next';
+import { buildTeamMap, getAllTimeData } from '@/lib/sleeper';
+import { DIVISIONS, DIVISION_COLORS, ALL_LEAGUE_IDS, LEAGUE_HISTORY, MANAGER_INFO } from '@/lib/constants';
+import { getManagerDisplayName, getWinPercentage, warnUnknownOwner } from '@/lib/utils';
 import PageHeader from '@/components/ui/PageHeader';
+import StandingsSeasonView from '@/components/StandingsSeasonView';
 
 export const revalidate = 3600;
 
+export const metadata: Metadata = {
+  title: 'Standings · ATL FFL',
+  description: 'Season and all-time standings for the ATL Fantasy Football League, with division breakdowns and championship history.',
+};
+
+export interface StandingsTeam {
+  rosterId: number;
+  ownerId: string;
+  name: string;
+  teamName: string;
+  photo: string;
+  division: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  fpts: number;
+  fptsAgainst: number;
+  winPct: number;
+  diff: number;
+  isChampion: boolean;
+}
+
 export default async function StandingsPage() {
-  const [rosters, users] = await Promise.all([
-    getRosters(PREV_LEAGUE_ID),
-    getUsers(PREV_LEAGUE_ID),
-  ]);
+  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
+  const allTimeData = await getAllTimeData(completedLeagueIds);
 
-  const teamMap = buildTeamMap(rosters, users);
+  const seasonStandings: Record<string, StandingsTeam[]> = {};
 
-  // Build standings data
-  const standings = rosters.map((roster) => {
-    const team = teamMap.get(roster.roster_id);
-    const fpts = (roster.settings.fpts || 0) + ((roster.settings.fpts_decimal || 0) / 100);
-    const fptsAgainst = (roster.settings.fpts_against || 0) + ((roster.settings.fpts_against_decimal || 0) / 100);
-    const division = parseInt(roster.metadata?.division || '1');
-    return {
-      rosterId: roster.roster_id,
-      ownerId: roster.owner_id,
-      name: getManagerDisplayName(roster.owner_id, team?.displayName || ''),
-      teamName: team?.teamName || '',
-      division,
-      wins: roster.settings.wins,
-      losses: roster.settings.losses,
-      ties: roster.settings.ties || 0,
-      fpts,
-      fptsAgainst,
-      winPct: getWinPercentage(roster.settings.wins, roster.settings.losses, roster.settings.ties || 0),
-      diff: fpts - fptsAgainst,
-    };
-  });
+  for (const seasonData of allTimeData) {
+    const teamMap = buildTeamMap(seasonData.rosters, seasonData.users);
+    const champInfo = Object.values(LEAGUE_HISTORY).find((h) => h.id === seasonData.leagueId);
 
-  // Sort overall by wins, then points
-  const overallStandings = [...standings].sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
-
-  // Division standings
-  const divisionStandings: Record<number, typeof standings> = {};
-  for (const team of standings) {
-    if (!divisionStandings[team.division]) divisionStandings[team.division] = [];
-    divisionStandings[team.division].push(team);
+    seasonStandings[seasonData.season] = seasonData.rosters
+      .map((roster) => {
+        const team = teamMap.get(roster.roster_id);
+        const manager = MANAGER_INFO[roster.owner_id];
+        warnUnknownOwner(roster.owner_id, team?.displayName);
+        const fpts = (roster.settings.fpts || 0) + ((roster.settings.fpts_decimal || 0) / 100);
+        const fptsAgainst =
+          (roster.settings.fpts_against || 0) + ((roster.settings.fpts_against_decimal || 0) / 100);
+        const division = (roster.settings as Record<string, number>).division || 1;
+        return {
+          rosterId: roster.roster_id,
+          ownerId: roster.owner_id,
+          name: getManagerDisplayName(roster.owner_id, team?.displayName || ''),
+          teamName: team?.teamName || '',
+          photo: manager?.photo || '/managers/question.jpg',
+          division,
+          wins: roster.settings.wins,
+          losses: roster.settings.losses,
+          ties: roster.settings.ties || 0,
+          fpts,
+          fptsAgainst,
+          winPct: getWinPercentage(roster.settings.wins, roster.settings.losses, roster.settings.ties || 0),
+          diff: fpts - fptsAgainst,
+          isChampion: roster.roster_id === champInfo?.championRosterId,
+        };
+      })
+      .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
   }
-  for (const div of Object.values(divisionStandings)) {
-    div.sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
+
+  const allTimeRecords: Record<string, { ownerId: string; name: string; photo: string; wins: number; losses: number; totalPF: number; seasons: number; championships: number }> = {};
+  for (const seasonData of allTimeData) {
+    const teamMap = buildTeamMap(seasonData.rosters, seasonData.users);
+    const champRosterId = Object.values(LEAGUE_HISTORY).find((h) => h.id === seasonData.leagueId)?.championRosterId;
+    for (const roster of seasonData.rosters) {
+      const key = roster.owner_id;
+      if (!allTimeRecords[key]) {
+        const manager = MANAGER_INFO[roster.owner_id];
+        allTimeRecords[key] = {
+          ownerId: key,
+          name: getManagerDisplayName(key, teamMap.get(roster.roster_id)?.displayName || ''),
+          photo: manager?.photo || '/managers/question.jpg',
+          wins: 0,
+          losses: 0,
+          totalPF: 0,
+          seasons: 0,
+          championships: 0,
+        };
+      }
+      allTimeRecords[key].wins += roster.settings.wins;
+      allTimeRecords[key].losses += roster.settings.losses;
+      allTimeRecords[key].totalPF += (roster.settings.fpts || 0) + ((roster.settings.fpts_decimal || 0) / 100);
+      allTimeRecords[key].seasons++;
+      if (roster.roster_id === champRosterId) allTimeRecords[key].championships++;
+    }
   }
+
+  const allTimeList = Object.values(allTimeRecords).sort((a, b) => b.wins - a.wins || b.totalPF - a.totalPF);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <PageHeader title="Standings" subtitle="2025 Season Final Standings" />
-
-      {/* Overall Standings */}
-      <div className="glass-card overflow-hidden mb-8">
-        <div className="px-6 py-4 border-b border-border/30">
-          <h2 className="text-xl font-bold">Overall Standings</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="stats-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Team</th>
-                <th>Division</th>
-                <th>W</th>
-                <th>L</th>
-                <th>Win %</th>
-                <th>PF</th>
-                <th>PA</th>
-                <th>Diff</th>
-              </tr>
-            </thead>
-            <tbody>
-              {overallStandings.map((team, i) => {
-                const manager = MANAGER_INFO[team.ownerId];
-                const isChampion = team.rosterId === 9;
-                const isPlayoff = i < 6;
-                return (
-                  <tr key={team.rosterId} className={isChampion ? 'bg-gold/5' : ''}>
-                    <td className="font-bold text-text-muted">
-                      {i + 1}
-                      {isChampion && ' 🏆'}
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={manager?.photo || '/managers/question.jpg'}
-                          alt={team.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                        <div>
-                          <div className="font-medium">{team.name}</div>
-                          <div className="text-text-muted text-xs">{team.teamName}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: DIVISION_COLORS[team.division] + '20', color: DIVISION_COLORS[team.division] }}>
-                        {DIVISIONS[team.division]}
-                      </span>
-                    </td>
-                    <td className="font-bold text-success">{team.wins}</td>
-                    <td className="font-bold text-danger">{team.losses}</td>
-                    <td className="text-text-secondary">{(team.winPct * 100).toFixed(0)}%</td>
-                    <td className="font-mono">{formatPoints(team.fpts)}</td>
-                    <td className="font-mono text-text-secondary">{formatPoints(team.fptsAgainst)}</td>
-                    <td className={`font-mono font-bold ${team.diff > 0 ? 'text-success' : 'text-danger'}`}>
-                      {team.diff > 0 ? '+' : ''}{formatPoints(team.diff)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-6 py-3 bg-surface/50 text-text-muted text-sm">
-          Top 6 teams qualified for playoffs &middot; Division winners get top 3 seeds
-        </div>
-      </div>
-
-      {/* Division Standings */}
-      <h2 className="text-xl font-bold mb-4">Division Standings</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3].map((divNum) => (
-          <div key={divNum} className="glass-card overflow-hidden">
-            <div className="px-4 py-3 font-bold uppercase tracking-wider text-sm" style={{ backgroundColor: DIVISION_COLORS[divNum] + '20', color: DIVISION_COLORS[divNum], borderBottom: `2px solid ${DIVISION_COLORS[divNum]}` }}>
-              {DIVISIONS[divNum]}
-            </div>
-            <div className="divide-y divide-border/20">
-              {(divisionStandings[divNum] || []).map((team, i) => (
-                <div key={team.rosterId} className="px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-text-muted font-bold w-4">{i + 1}</span>
-                    <div>
-                      <div className="font-medium text-sm">{team.name}</div>
-                      <div className="text-text-muted text-xs">{team.teamName}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-sm">{formatRecord(team.wins, team.losses, team.ties)}</div>
-                    <div className="text-text-muted text-xs">{formatPoints(team.fpts)} PF</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Points Comparison */}
-      <div className="glass-card p-6 mt-8">
-        <h2 className="text-xl font-bold mb-4">Points Scored Comparison</h2>
-        <div className="space-y-3">
-          {overallStandings.map((team) => {
-            const maxPts = Math.max(...overallStandings.map(t => t.fpts));
-            const pct = (team.fpts / maxPts) * 100;
-            return (
-              <div key={team.rosterId} className="flex items-center gap-4">
-                <div className="w-32 text-sm font-medium truncate">{team.name}</div>
-                <div className="flex-1 bg-navy rounded-full h-6 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-gold-dark to-gold flex items-center justify-end pr-2"
-                    style={{ width: `${pct}%` }}
-                  >
-                    <span className="text-navy text-xs font-bold">{formatPoints(team.fpts)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <PageHeader title="Standings" subtitle="Season Standings & All-Time Records" />
+      <StandingsSeasonView
+        seasonStandings={seasonStandings}
+        allTimeRecords={allTimeList}
+        divisions={DIVISIONS}
+        divisionColors={DIVISION_COLORS}
+      />
     </div>
   );
 }

@@ -1,21 +1,37 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-navy: #0f172a;
-  --color-navy-light: #1e293b;
-  --color-navy-lighter: #334155;
-  --color-gold: #f59e0b;
-  --color-gold-light: #fbbf24;
-  --color-gold-dark: #d97706;
-  --color-surface: #1e293b;
-  --color-surface-hover: #334155;
-  --color-border: #475569;
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-  --color-success: #22c55e;
-  --color-danger: #ef4444;
-  --color-info: #3b82f6;
+  --color-navy: #111111;
+  --color-navy-light: #1a1a1a;
+  --color-navy-lighter: #2a2a2a;
+  --color-gold: #ff7a3d;
+  --color-gold-light: #ffa270;
+  --color-gold-dark: #e55a1b;
+  --color-surface: #1a1a1a;
+  --color-surface-hover: #252525;
+  --color-border: #3a3a3a;
+  --color-text-primary: #f5f5f5;
+  --color-text-secondary: #c4c4c4;
+  --color-text-muted: #8a8a8a;
+  --color-success: #4ade80;
+  --color-danger: #f87171;
+  --color-info: #ff7a3d;
+}
+
+/* Global focus-visible: any interactive element gets a clear gold ring.
+   Use focus-visible (not focus) so mouse clicks don't leave a ring. */
+*:focus-visible {
+  outline: 2px solid #ff7a3d;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 body {
@@ -25,21 +41,21 @@ body {
 
 /* Glass card effect */
 .glass-card {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.6));
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.9), rgba(17, 17, 17, 0.7));
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(71, 85, 105, 0.3);
+  border: 1px solid rgba(51, 51, 51, 0.5);
   border-radius: 12px;
   transition: all 0.3s ease;
 }
 
 .glass-card:hover {
-  border-color: rgba(245, 158, 11, 0.3);
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+  border-color: rgba(255, 107, 43, 0.3);
+  box-shadow: 0 0 20px rgba(255, 107, 43, 0.08);
 }
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  background: linear-gradient(135deg, #ff6b2b, #ff8c55, #ffad75);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -47,9 +63,9 @@ body {
 
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--color-navy); }
-::-webkit-scrollbar-thumb { background: var(--color-navy-lighter); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-gold-dark); }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #ff6b2b; }
 
 /* Animations */
 @keyframes fadeIn {
@@ -65,8 +81,8 @@ body {
 .animate-slide-up { animation: slideUp 0.6s ease-out forwards; }
 
 @keyframes pulse-gold {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-  50% { box-shadow: 0 0 20px 5px rgba(245, 158, 11, 0.2); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 43, 0.4); }
+  50% { box-shadow: 0 0 20px 5px rgba(255, 107, 43, 0.15); }
 }
 .animate-pulse-gold { animation: pulse-gold 2s infinite; }
 
@@ -79,20 +95,24 @@ body {
 /* Table styles */
 .stats-table { width: 100%; border-collapse: collapse; }
 .stats-table th {
-  background: rgba(30, 41, 59, 0.8);
+  background: rgba(26, 26, 26, 0.9);
   padding: 12px 16px;
   text-align: left;
   font-weight: 600;
-  color: var(--color-gold);
-  border-bottom: 2px solid var(--color-gold-dark);
+  color: #ff9866;
+  border-bottom: 2px solid #e55a1b;
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 .stats-table td {
   padding: 10px 16px;
-  border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+  border-bottom: 1px solid rgba(58, 58, 58, 0.5);
 }
 .stats-table tr:hover td {
-  background: rgba(245, 158, 11, 0.05);
+  background: rgba(255, 122, 61, 0.06);
 }
+
+.scrollbar-thin::-webkit-scrollbar { height: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 2px; }

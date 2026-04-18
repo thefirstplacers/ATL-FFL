@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { NFL_TEAMS } from '@/lib/nfl';
 
 interface Player {
   id: string;
@@ -11,6 +10,7 @@ interface Player {
   age: number;
   yearsExp: number;
   status: string;
+  injuryStatus?: string | null;
   isRostered: boolean;
   rosteredBy: string;
 }
@@ -117,8 +117,13 @@ export default function PlayerPoolClient({ players }: { players: Player[] }) {
                   <td className="text-text-secondary text-sm">{player.age || '-'}</td>
                   <td className="text-text-secondary text-sm">{player.yearsExp > 0 ? `${player.yearsExp}yr` : 'R'}</td>
                   <td>
+                    {player.injuryStatus && (
+                      <span className="text-xs text-danger font-semibold mr-2" title={player.injuryStatus}>
+                        {player.injuryStatus.slice(0, 3).toUpperCase()}
+                      </span>
+                    )}
                     {player.isRostered ? (
-                      <span className="text-xs text-danger">Rostered - {player.rosteredBy}</span>
+                      <span className="text-xs text-danger">Rostered — {player.rosteredBy}</span>
                     ) : (
                       <span className="text-xs text-success font-medium">Available</span>
                     )}
