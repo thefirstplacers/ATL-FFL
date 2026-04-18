@@ -47,13 +47,21 @@ export default async function TradeOptimizerPage() {
   }
 
   const playerMap = await getPlayerMap();
-  const { analyses } = buildOptimizerInput(
+  const { analyses, positionStats } = buildOptimizerInput(
     rosters,
     users,
     allMatchups,
     playerMap,
     league.roster_positions,
   );
+
+  // Serializable snapshot for the client
+  const positionContext = Array.from(positionStats.values()).map((s) => ({
+    position: s.position,
+    replacementPPG: Math.round(s.replacementPPG * 10) / 10,
+    stdDev: Math.round(s.stdDevVORP * 10) / 10,
+    topPPG: s.ppgList[0] ?? 0,
+  }));
 
   const leagueAverages = {
     QB: average(analyses, 'QB'),
@@ -71,10 +79,28 @@ export default async function TradeOptimizerPage() {
         title="Trade Target Optimizer"
         subtitle="Find trade partners whose roster holes match your surplus"
       />
-      <div className="glass-card p-4 mb-6 text-text-secondary text-sm">
-        <strong className="text-gold">How it works:</strong>{' '}
-        Every player gets a 0-100 trade value based on PPG over replacement, positional scarcity, age curve, and injury status.
-        Team grades compare each position group to the league average. Suggested trades match your surplus positions to partners&apos; needs (and vice versa), then rank by fairness + fit.
+      <div className="glass-card p-5 mb-6 text-text-secondary text-sm space-y-3">
+        <div>
+          <strong className="text-gold">Valuation method (VBD + z-score):</strong>{' '}
+          Each player&apos;s value is their PPG minus the league&apos;s <em>replacement-level</em> PPG at that
+          position — a.k.a. Value Over Replacement Player (VORP). 15 PPG at QB (near replacement) scores
+          very differently than 15 PPG at TE (elite tier). Values are then divided by position standard
+          deviation (z-score) so a +1σ asset at every position is comparable, with a PPR-weighted
+          premium for TE and RB where scarcity is most extreme.
+        </div>
+        <div className="flex flex-wrap gap-3 pt-2 border-t border-border/30">
+          <strong className="text-gold text-xs uppercase tracking-wider w-full sm:w-auto">Replacement PPG:</strong>
+          {positionContext
+            .filter((p) => ['QB', 'RB', 'WR', 'TE'].includes(p.position))
+            .sort((a, b) => ['QB', 'RB', 'WR', 'TE'].indexOf(a.position) - ['QB', 'RB', 'WR', 'TE'].indexOf(b.position))
+            .map((p) => (
+              <span key={p.position} className="inline-flex items-center gap-2 bg-navy rounded-lg px-3 py-1 text-xs">
+                <span className="font-bold text-gold">{p.position}</span>
+                <span className="text-text-secondary">{p.replacementPPG} PPG</span>
+                <span className="text-text-muted">(σ={p.stdDev})</span>
+              </span>
+            ))}
+        </div>
       </div>
       <TradeOptimizerClient teams={analyses} leagueAverages={leagueAverages} isOffseason={isOffseason} />
     </div>

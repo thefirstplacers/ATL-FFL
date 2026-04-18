@@ -80,61 +80,33 @@ export async function fetchRSS(
   }
 }
 
-export async function fetchRedditRSS(subreddit: string, limit = 15): Promise<RedditPost[]> {
-  try {
-    const res = await fetch(`https://www.reddit.com/r/${subreddit}/hot.rss?limit=20`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ATL-FFL/1.0)',
-        Accept: 'application/rss+xml, application/xml, text/xml',
-      },
-    });
-    if (res.ok) {
-      const xml = await res.text();
-      const parsed = parser.parse(xml) as Record<string, unknown>;
-      const feed = parsed.feed as { entry?: Array<Record<string, unknown>> | Record<string, unknown> } | undefined;
-      const entries = Array.isArray(feed?.entry) ? feed.entry : feed?.entry ? [feed.entry] : [];
-      const posts: RedditPost[] = entries.slice(0, limit).map((entry) => {
-        const linkVal = entry.link as Record<string, string> | Array<Record<string, string>> | undefined;
-        const href = Array.isArray(linkVal) ? linkVal[0]?.['@_href'] : linkVal?.['@_href'];
-        const author = entry.author as { name?: string } | undefined;
-        const updated = text(entry.updated);
-        const link = href || text(entry.link);
-        return {
-          title: text(entry.title),
-          url: link,
-          permalink: link.replace('https://www.reddit.com', ''),
-          score: 0,
-          numComments: 0,
-          author: (author?.name || '').replace('/u/', '') || 'unknown',
-          created: updated ? Math.floor(new Date(updated).getTime() / 1000) : 0,
-          flair: '',
-        };
-      });
-      if (posts.length > 0) return posts;
-    }
-  } catch (err) {
-    console.warn('[rss] Reddit RSS failed, trying JSON:', err);
-  }
+// Reddit aggressively blocks unauthenticated server-side requests. We try
+// multiple (hostname × format) combinations with a real browser UA. If every
+// request 403s or times out, we return [] and the UI shows a "visit Reddit
+// directly" fallback rather than a broken pane.
+const REDDIT_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36';
 
-  // JSON fallback — RSS does not include score/comments/flair
+async function tryRedditJSON(subreddit: string, host: string): Promise<RedditPost[] | null> {
   try {
     const res = await fetch(
-      `https://old.reddit.com/r/${subreddit}/hot.json?limit=20&raw_json=1`,
+      `https://${host}/r/${subreddit}/hot.json?limit=25&raw_json=1`,
       {
         cache: 'no-store',
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ATL-FFL/1.0)' },
+        headers: {
+          'User-Agent': REDDIT_UA,
+          Accept: 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
       },
     );
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const data = (await res.json()) as {
       data?: { children?: Array<{ data: RedditJsonPost }> };
     };
-    return (data.data?.children || [])
+    const posts = (data.data?.children || [])
       .filter((c) => !c.data.stickied)
-      .slice(0, limit)
       .map((c) => ({
         title: c.data.title,
         url: c.data.url,
@@ -145,10 +117,66 @@ export async function fetchRedditRSS(subreddit: string, limit = 15): Promise<Red
         created: c.data.created_utc,
         flair: c.data.link_flair_text || '',
       }));
-  } catch (err) {
-    console.warn('[rss] Reddit JSON fallback failed:', err);
-    return [];
+    return posts.length > 0 ? posts : null;
+  } catch {
+    return null;
   }
+}
+
+async function tryRedditRSS(subreddit: string, host: string): Promise<RedditPost[] | null> {
+  try {
+    const res = await fetch(`https://${host}/r/${subreddit}/hot.rss?limit=25`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: {
+        'User-Agent': REDDIT_UA,
+        Accept: 'application/rss+xml, application/xml, text/xml',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!res.ok) return null;
+    const xml = await res.text();
+    const parsed = parser.parse(xml) as Record<string, unknown>;
+    const feed = parsed.feed as { entry?: Array<Record<string, unknown>> | Record<string, unknown> } | undefined;
+    const entries = Array.isArray(feed?.entry) ? feed.entry : feed?.entry ? [feed.entry] : [];
+    const posts: RedditPost[] = entries.map((entry) => {
+      const linkVal = entry.link as Record<string, string> | Array<Record<string, string>> | undefined;
+      const href = Array.isArray(linkVal) ? linkVal[0]?.['@_href'] : linkVal?.['@_href'];
+      const author = entry.author as { name?: string } | undefined;
+      const updated = text(entry.updated);
+      const link = href || text(entry.link);
+      return {
+        title: text(entry.title),
+        url: link,
+        permalink: link.replace(/^https?:\/\/(?:www\.|old\.)?reddit\.com/, ''),
+        score: 0,
+        numComments: 0,
+        author: (author?.name || '').replace('/u/', '') || 'unknown',
+        created: updated ? Math.floor(new Date(updated).getTime() / 1000) : 0,
+        flair: '',
+      };
+    });
+    return posts.length > 0 ? posts : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchRedditRSS(subreddit: string, limit = 15): Promise<RedditPost[]> {
+  // Attempt order: JSON first (richer data: scores, comments, flair), falling
+  // back to RSS. Try both www and old.reddit, which are load-balanced
+  // separately on Reddit's side.
+  const attempts: Array<() => Promise<RedditPost[] | null>> = [
+    () => tryRedditJSON(subreddit, 'www.reddit.com'),
+    () => tryRedditJSON(subreddit, 'old.reddit.com'),
+    () => tryRedditRSS(subreddit, 'www.reddit.com'),
+    () => tryRedditRSS(subreddit, 'old.reddit.com'),
+  ];
+  for (const attempt of attempts) {
+    const result = await attempt();
+    if (result && result.length > 0) return result.slice(0, limit);
+  }
+  return [];
 }
 
 interface RedditJsonPost {

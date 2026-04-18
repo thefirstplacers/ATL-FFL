@@ -30,6 +30,23 @@ function Badge({ position }: { position: string }) {
   );
 }
 
+const TIER_LABEL: Record<number, { label: string; className: string }> = {
+  1: { label: 'Elite', className: 'bg-gold/20 text-gold' },
+  2: { label: 'Strong Starter', className: 'bg-success/20 text-success' },
+  3: { label: 'Starter/Flex', className: 'bg-info/20 text-info' },
+  4: { label: 'Depth', className: 'bg-text-secondary/20 text-text-secondary' },
+  5: { label: 'Replacement', className: 'bg-danger/10 text-text-muted' },
+};
+
+function TierPill({ tier }: { tier: number }) {
+  const t = TIER_LABEL[tier] || TIER_LABEL[5];
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${t.className}`}>
+      T{tier} {t.label}
+    </span>
+  );
+}
+
 function GradeBar({ grade, avg }: { grade: number; avg: number }) {
   const diff = grade - avg;
   const color =
@@ -75,7 +92,7 @@ export default function TradeOptimizerClient({ teams, leagueAverages, isOffseaso
           <div>
             <div className="font-medium text-info mb-1">Offseason mode</div>
             <div>
-              Trade values are derived from {teams[0]?.players.some((p) => p.pointsScored > 0) ? 'last season&apos;s' : 'the most recently played season&apos;s'} actual fantasy production. Suggestions still apply as long as rosters haven&apos;t been reset.
+              Trade values are derived from the most recently completed season&rsquo;s actual fantasy production. Suggestions still apply as long as rosters haven&rsquo;t been reset.
             </div>
           </div>
         </div>
@@ -225,22 +242,24 @@ export default function TradeOptimizerClient({ teams, leagueAverages, isOffseaso
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                       <div className="bg-danger/5 border border-danger/20 rounded-lg p-3">
                         <div className="text-danger text-xs font-bold uppercase tracking-wider mb-2">You Give</div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <Badge position={sug.giving.position} />
                           <span className="font-bold">{sug.giving.name}</span>
+                          <TierPill tier={sug.giving.tier} />
                         </div>
                         <div className="text-text-muted text-xs">
-                          {sug.giving.team} &middot; {sug.giving.ppg} PPG &middot; Value {sug.giving.tradeValue}
+                          {sug.giving.team} &middot; {sug.giving.ppg} PPG &middot; {sug.giving.vorp > 0 ? '+' : ''}{sug.giving.vorp} VORP &middot; Value {sug.giving.tradeValue}
                         </div>
                       </div>
                       <div className="bg-success/5 border border-success/20 rounded-lg p-3">
                         <div className="text-success text-xs font-bold uppercase tracking-wider mb-2">You Get</div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <Badge position={sug.receiving.position} />
                           <span className="font-bold">{sug.receiving.name}</span>
+                          <TierPill tier={sug.receiving.tier} />
                         </div>
                         <div className="text-text-muted text-xs">
-                          {sug.receiving.team} &middot; {sug.receiving.ppg} PPG &middot; Value {sug.receiving.tradeValue}
+                          {sug.receiving.team} &middot; {sug.receiving.ppg} PPG &middot; {sug.receiving.vorp > 0 ? '+' : ''}{sug.receiving.vorp} VORP &middot; Value {sug.receiving.tradeValue}
                         </div>
                       </div>
                     </div>
@@ -357,9 +376,14 @@ export default function TradeOptimizerClient({ teams, leagueAverages, isOffseaso
                               <Badge position={p.position} />
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm font-medium truncate">{p.name}</div>
-                                <div className="text-text-muted text-xs">{p.team} &middot; {p.ppg} PPG</div>
+                                <div className="text-text-muted text-xs">
+                                  {p.team} &middot; {p.ppg} PPG &middot; {p.vorp > 0 ? '+' : ''}{p.vorp} VORP
+                                </div>
                               </div>
-                              <div className="text-gold font-bold text-sm">{p.tradeValue}</div>
+                              <div className="text-right">
+                                <div className="text-gold font-bold text-sm">{p.tradeValue}</div>
+                                <div className="text-text-muted text-[10px] uppercase">T{p.tier}</div>
+                              </div>
                             </div>
                           ))}
                       </div>

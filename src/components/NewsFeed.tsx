@@ -124,7 +124,15 @@ export default function NewsFeed({ news, blogPosts, redditPosts }: { news: NewsI
               </div>
             ) : (
               <div className="px-5 py-8 text-center text-text-muted text-sm">
-                Unable to load Reddit posts. <a href="https://www.reddit.com/r/fantasyfootball/" target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">Visit the subreddit directly</a>.
+                <div className="mb-3">Reddit is rate-limiting server requests right now.</div>
+                <a
+                  href="https://www.reddit.com/r/fantasyfootball/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FF4500]/10 hover:bg-[#FF4500]/20 text-[#FF4500] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                >
+                  Open r/fantasyfootball →
+                </a>
               </div>
             )}
           </div>
@@ -200,8 +208,8 @@ export default function NewsFeed({ news, blogPosts, redditPosts }: { news: NewsI
 
           {filteredNews.length === 0 ? (
             <div className="glass-card p-8 text-center">
-              <p className="text-text-muted">No news articles found. RSS feeds may be temporarily unavailable.</p>
-              <p className="text-text-muted text-sm mt-2">Try checking back later or visit ESPN, NFL.com, or Yahoo Sports directly.</p>
+              <p className="text-text-muted">No articles right now — upstream feeds may be temporarily unavailable.</p>
+              <p className="text-text-muted text-sm mt-2">Check back in a few minutes, or try ESPN, NFL.com, or Yahoo Sports directly.</p>
             </div>
           ) : (
             <div className="space-y-3">

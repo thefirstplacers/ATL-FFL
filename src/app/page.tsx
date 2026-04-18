@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getRosters, getUsers, getAllMatchups, buildTeamMap, pairMatchups } from '@/lib/sleeper';
+import { getLeague, getRosters, getUsers, getAllMatchups, buildTeamMap, pairMatchups } from '@/lib/sleeper';
 import { PREV_LEAGUE_ID, LEAGUE_NAME, LEAGUE_EST, LEAGUE_HISTORY, DIVISIONS, DIVISION_COLORS, DRAFT_DATE, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName, formatPoints, formatRecord } from '@/lib/utils';
 import { getWinnerLoser } from '@/lib/matchups';
@@ -8,15 +8,18 @@ import CountdownTimer from '@/components/CountdownTimer';
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const [rosters, users, allMatchups] = await Promise.all([
+  const [prevLeague, rosters, users, allMatchups] = await Promise.all([
+    getLeague(PREV_LEAGUE_ID),
     getRosters(PREV_LEAGUE_ID),
     getUsers(PREV_LEAGUE_ID),
     getAllMatchups(PREV_LEAGUE_ID, REGULAR_SEASON_WEEKS),
   ]);
 
+  const prevSeason = prevLeague.season;
+  const prevSeasonNum = parseInt(prevSeason, 10);
   const teamMap = buildTeamMap(rosters, users);
 
-  const championRosterId = Object.values(LEAGUE_HISTORY).find((h) => h.season === 2025)?.championRosterId;
+  const championRosterId = Object.values(LEAGUE_HISTORY).find((h) => h.season === prevSeasonNum)?.championRosterId;
   const championRoster = rosters.find((r) => r.roster_id === championRosterId);
   const championInfo = championRoster ? teamMap.get(championRoster.roster_id) : null;
   const championManager = championRoster ? MANAGER_INFO[championRoster.owner_id] : null;
@@ -108,7 +111,7 @@ export default async function HomePage() {
             🏆
           </div>
           <div className="text-center md:text-left flex-1">
-            <div className="text-gold text-sm font-semibold uppercase tracking-wider">2025 League Champion</div>
+            <div className="text-gold text-sm font-semibold uppercase tracking-wider">{prevSeason} League Champion</div>
             <h2 className="text-2xl md:text-3xl font-bold mt-1">
               {championManager?.name}{championManager?.coManagerName ? ` & ${championManager.coManagerName}` : ''}
               <span className="text-text-secondary font-normal ml-2">&quot;{championInfo?.teamName}&quot;</span>
@@ -142,7 +145,7 @@ export default async function HomePage() {
             ))}
           </div>
           <div className="px-6 py-3 bg-surface/50 text-text-muted text-xs">
-            Pre-2022 seasons were played on ESPN and data is not available in Sleeper API
+            Pre-Sleeper seasons were played on ESPN and are not available via the Sleeper API
           </div>
         </div>
       </section>
@@ -156,7 +159,7 @@ export default async function HomePage() {
       </section>
 
       <section className="max-w-7xl mx-auto px-4 mt-8">
-        <h2 className="text-2xl font-bold mb-6">2025 Season Highlights</h2>
+        <h2 className="text-2xl font-bold mb-6">{prevSeason} Season Highlights</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="glass-card p-5">
             <div className="text-text-muted text-sm mb-1">🏆 Top Scorer</div>

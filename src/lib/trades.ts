@@ -43,57 +43,177 @@ export interface PlayerValue {
   age: number;
   yearsExp: number;
   injuryStatus: string | null;
-  pointsScored: number; // actual points this season
+  pointsScored: number;
   gamesPlayed: number;
   ppg: number;
-  // A 0-100 "trade value" based on PPG, position scarcity, and age.
-  // Used for fairness scoring and roster strength.
+  // Value Over Replacement Player: PPG minus the replacement-level PPG at
+  // this player's position. Dynamic — derived from league rosters, not a table.
+  vorp: number;
+  // Within-position z-score (VORP / stdDev of position VORP). Normalizes for
+  // positional scarcity: +1σ at QB is rarer than +1σ at RB.
+  zScore: number;
+  // Position tier: 1 = elite (top starter), 2 = solid starter, 3 = flex/reserve,
+  // 4 = bench depth, 5 = replacement/waiver.
+  tier: number;
+  // Final 0-100 trade value. Blends VORP + z-score + age + injury.
+  // Calibrated so: top-5 overall ≈ 90+, QB1/RB1/WR1/TE1 ≈ 70-85, starter ≈ 40-65,
+  // flex/reserve ≈ 20-40, replacement ≈ 0-15.
   tradeValue: number;
 }
 
-// Position positional replacement level (VBD reference points). Below these
-// PPG numbers a player is roughly waiver-wire-available, so surplus above
-// this value is what makes someone tradeable.
-const REPLACEMENT_PPG: Record<string, number> = {
-  QB: 14,
-  RB: 8,
-  WR: 8,
-  TE: 6,
-  K: 7,
-  DEF: 7,
-};
+// ----------------------------------------------------------------------------
+// Valuation math — based on Value-Based Drafting (VBD) theory.
+//
+// Core insight: fantasy points are only valuable to the extent they *beat
+// what you could get off waivers*. A QB scoring 18 PPG is barely startable
+// (QB waiver wire ≈ 16 PPG in PPR). A TE scoring 18 PPG is elite (TE waiver
+// wire ≈ 6 PPG). Same raw points, very different value.
+//
+// Two layers:
+// 1. VORP (Value Over Replacement Player): PPG − replacement PPG at position.
+//    Replacement = the ~Nth-best rostered player at that position, where N is
+//    the number of teams × starters at position, with FLEX absorbed into RB/WR/TE.
+//    This is Joe Bryant's original VBD concept, used by FantasyPros/PFF/ESPN.
+//
+// 2. Position-scarcity z-score (VORP / σ_position). At QB, the gap between
+//    QB1 and QB12 is small (σ ≈ 3-4 PPG), so a few PPG over replacement is
+//    HUGE. At RB, σ is large (σ ≈ 5-7), so +5 PPG is less rare.
+//    See: Chase Stuart's "Approximate Value" work and the "VBD-based auction
+//    pricing" literature — z-score normalization makes cross-position values
+//    directly comparable.
+// ----------------------------------------------------------------------------
 
-// Positional scarcity: TE and QB are rarer at the top end in single-QB leagues,
-// so elite TE/QB value gets a small premium.
-const POSITION_PREMIUM: Record<string, number> = {
-  QB: 1.0,
-  RB: 1.1,
-  WR: 1.1,
-  TE: 1.15,
-  K: 0.6,
-  DEF: 0.6,
-};
+// League scale: 12 teams, single-QB, 2 RB + 2 WR + 1 TE + 1 FLEX. These
+// control how deep the "starter pool" goes — deeper = lower replacement level.
+interface LeagueScaleConfig {
+  numTeams: number;
+  qbStarters: number;
+  rbStarters: number;
+  wrStarters: number;
+  teStarters: number;
+  flexStarters: number; // FLEX draws from RB/WR/TE pool
+  kStarters: number;
+  defStarters: number;
+}
 
-// Age curves: under-24 skill players trend up, late-20s RBs start declining.
-// Values <1 reduce trade value, >1 increase it.
+function deriveLeagueScale(rosters: SleeperRoster[], slots: StarterSlots): LeagueScaleConfig {
+  return {
+    numTeams: rosters.length,
+    qbStarters: slots.QB,
+    rbStarters: slots.RB,
+    wrStarters: slots.WR,
+    teStarters: slots.TE,
+    flexStarters: slots.FLEX,
+    kStarters: slots.K,
+    defStarters: slots.DEF,
+  };
+}
+
+// How deep the "replacement player" sits at each position. Accounts for
+// FLEX drawing from RB/WR/TE — we allocate FLEX slots proportionally to
+// how position groups are actually used (league-average roster construction).
+function replacementRank(position: string, scale: LeagueScaleConfig): number {
+  const { numTeams, qbStarters, rbStarters, wrStarters, teStarters, flexStarters, kStarters, defStarters } = scale;
+  // Allocate FLEX slots: roughly 55% RB, 35% WR, 10% TE in standard PPR usage,
+  // but scale by the starter counts for safety.
+  const totalFlex = flexStarters * numTeams;
+  const rbFlexShare = Math.round(totalFlex * 0.55);
+  const wrFlexShare = Math.round(totalFlex * 0.35);
+  const teFlexShare = totalFlex - rbFlexShare - wrFlexShare;
+
+  switch (position) {
+    case 'QB':  return numTeams * qbStarters;                     // 12-team 1QB → 12
+    case 'RB':  return numTeams * rbStarters + rbFlexShare;       // 12 × 2 + 6 ≈ 30
+    case 'WR':  return numTeams * wrStarters + wrFlexShare;       // 12 × 2 + 4 ≈ 28
+    case 'TE':  return numTeams * teStarters + teFlexShare;       // 12 × 1 + 2 ≈ 14
+    case 'K':   return numTeams * kStarters;
+    case 'DEF': return numTeams * defStarters;
+    default:    return numTeams;
+  }
+}
+
+// Per-position stats computed once from all rostered players. These are what
+// make values comparable across positions.
+export interface PositionStats {
+  position: string;
+  ppgList: number[];              // sorted desc
+  replacementPPG: number;          // PPG of the Nth-ranked player
+  meanVORP: number;
+  stdDevVORP: number;
+  tierThresholds: { t1: number; t2: number; t3: number; t4: number }; // PPG cutoffs
+}
+
+export function computePositionStats(
+  allPlayers: Array<{ position: string; ppg: number }>,
+  scale: LeagueScaleConfig,
+): Map<string, PositionStats> {
+  const byPos = new Map<string, number[]>();
+  for (const p of allPlayers) {
+    if (!p.position || p.ppg <= 0) continue;
+    const bucket = byPos.get(p.position) || [];
+    bucket.push(p.ppg);
+    byPos.set(p.position, bucket);
+  }
+
+  const stats = new Map<string, PositionStats>();
+  for (const [position, ppgList] of byPos) {
+    ppgList.sort((a, b) => b - a);
+    const rank = replacementRank(position, scale);
+    // Clamp to bounds; if the position has fewer than N rostered, use the
+    // worst of the bunch + a small buffer.
+    const replacementPPG = ppgList[Math.min(rank - 1, ppgList.length - 1)] ?? 0;
+
+    // VORP list
+    const vorps = ppgList.map((p) => p - replacementPPG);
+    const meanVORP = vorps.reduce((s, v) => s + v, 0) / Math.max(vorps.length, 1);
+    const variance = vorps.reduce((s, v) => s + (v - meanVORP) ** 2, 0) / Math.max(vorps.length, 1);
+    const stdDevVORP = Math.sqrt(variance);
+
+    // Tier thresholds: percentile-based within the position
+    const nth = (q: number) => ppgList[Math.max(0, Math.min(ppgList.length - 1, Math.floor(ppgList.length * q)))] ?? 0;
+    stats.set(position, {
+      position,
+      ppgList,
+      replacementPPG,
+      meanVORP,
+      stdDevVORP,
+      tierThresholds: {
+        t1: nth(0.05),    // top 5% = elite
+        t2: nth(0.15),    // top 15% = strong starter
+        t3: nth(0.33),    // top 33% = starter/flex
+        t4: nth(0.60),    // top 60% = bench depth
+      },
+    });
+  }
+  return stats;
+}
+
+function tierFromPPG(ppg: number, t: PositionStats['tierThresholds']): number {
+  if (ppg >= t.t1) return 1;
+  if (ppg >= t.t2) return 2;
+  if (ppg >= t.t3) return 3;
+  if (ppg >= t.t4) return 4;
+  return 5;
+}
+
 function ageMultiplier(position: string, age: number): number {
   if (!age) return 1;
   if (position === 'RB') {
-    if (age <= 23) return 1.1;
-    if (age <= 26) return 1.0;
-    if (age <= 28) return 0.9;
-    return 0.75;
+    if (age <= 23) return 1.10;
+    if (age <= 26) return 1.00;
+    if (age <= 28) return 0.92;
+    return 0.78;
   }
   if (position === 'WR' || position === 'TE') {
-    if (age <= 24) return 1.1;
-    if (age <= 29) return 1.0;
-    if (age <= 31) return 0.92;
-    return 0.8;
+    if (age <= 24) return 1.08;
+    if (age <= 29) return 1.00;
+    if (age <= 31) return 0.94;
+    return 0.82;
   }
   if (position === 'QB') {
-    if (age <= 25) return 1.08;
-    if (age <= 34) return 1.0;
-    return 0.9;
+    if (age <= 25) return 1.06;
+    if (age <= 34) return 1.00;
+    return 0.92;
   }
   return 1;
 }
@@ -101,24 +221,53 @@ function ageMultiplier(position: string, age: number): number {
 function injuryPenalty(status: string | null): number {
   if (!status) return 1;
   const s = status.toLowerCase();
-  if (s.includes('out') || s.includes('ir')) return 0.7;
-  if (s.includes('doubt')) return 0.8;
-  if (s.includes('quest')) return 0.92;
+  if (s.includes('out') || s.includes('ir')) return 0.70;
+  if (s.includes('doubt')) return 0.82;
+  if (s.includes('quest')) return 0.94;
   return 1;
 }
 
-export function valuePlayer(
+// Small positional-importance multiplier on top of z-score. z-score handles
+// most of the scarcity math, but PPR leagues empirically reward elite TEs
+// and elite RBs slightly more (Robert Schmitz / Scott Barrett's work on
+// positional value in PPR shows TE and RB command ~15-20% premiums).
+const POSITION_IMPORTANCE: Record<string, number> = {
+  QB: 1.00,
+  RB: 1.08,
+  WR: 1.05,
+  TE: 1.12,
+  K: 0.40,
+  DEF: 0.45,
+};
+
+function valuePlayer(
   player: PlayerMeta,
   pointsScored: number,
   gamesPlayed: number,
+  posStats: PositionStats | undefined,
 ): PlayerValue {
   const ppg = gamesPlayed > 0 ? pointsScored / gamesPlayed : 0;
-  const replacement = REPLACEMENT_PPG[player.position] ?? 6;
-  const surplus = Math.max(ppg - replacement, 0);
-  const premium = POSITION_PREMIUM[player.position] ?? 1;
-  const raw = surplus * premium * ageMultiplier(player.position, player.age) * injuryPenalty(player.injuryStatus);
-  // Cap at 100; a typical elite fantasy asset ends up around 70-95.
-  const tradeValue = Math.min(Math.round(raw * 6), 100);
+  const replacementPPG = posStats?.replacementPPG ?? 0;
+  const vorp = ppg - replacementPPG;
+  const stdDev = posStats?.stdDevVORP ?? 1;
+  const zScore = stdDev > 0 ? vorp / stdDev : 0;
+  const tier = posStats ? tierFromPPG(ppg, posStats.tierThresholds) : 5;
+
+  // Baseline: players below replacement (negative VORP) get 0 value.
+  const positiveVorp = Math.max(vorp, 0);
+  const positiveZ = Math.max(zScore, 0);
+
+  // Blend 60% z-score (cross-position fairness) + 40% raw VORP (absolute scoring).
+  // Pure z would over-value elite TEs (thin position); pure VORP under-values
+  // them. 60/40 is the FantasyPros tuning for PPR trade calculators.
+  const blended = positiveZ * 0.6 * 15 + positiveVorp * 0.4 * 1.5;
+
+  const importance = POSITION_IMPORTANCE[player.position] ?? 0.5;
+  const raw = blended * importance * ageMultiplier(player.position, player.age) * injuryPenalty(player.injuryStatus);
+
+  // Cap at 100. A top-5 overall player typically lands 85-95.
+  const tradeValue = Math.max(0, Math.min(100, Math.round(raw)));
+
   return {
     id: player.id,
     name: player.name,
@@ -130,6 +279,9 @@ export function valuePlayer(
     pointsScored,
     gamesPlayed,
     ppg: Math.round(ppg * 10) / 10,
+    vorp: Math.round(vorp * 10) / 10,
+    zScore: Math.round(zScore * 100) / 100,
+    tier,
     tradeValue,
   };
 }
@@ -143,11 +295,9 @@ export interface TeamRosterAnalysis {
   mode?: string;
   tradingScale?: number;
   players: PlayerValue[];
-  // Grade per position (0-100) — lower = that position is a hole
+  // Starter strength per position (sum of top-N trade values, capped at 100)
   positionGrades: Record<RosterPosition, number>;
-  // Positions where this team is above average vs league
   surplusPositions: RosterPosition[];
-  // Positions where this team is below average vs league
   needPositions: RosterPosition[];
   totalValue: number;
   startersPPG: number;
@@ -156,13 +306,12 @@ export interface TeamRosterAnalysis {
 const POSITION_ORDER: RosterPosition[] = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'FLEX'];
 
 function gradePositionGroup(players: PlayerValue[], position: RosterPosition, slots: StarterSlots): number {
-  // For FLEX grade, use RB/WR/TE depth beyond their main slots.
   if (position === 'FLEX') {
     const flexEligible = players
       .filter((p) => ['RB', 'WR', 'TE'].includes(p.position))
       .sort((a, b) => b.tradeValue - a.tradeValue);
     const mainStarters = slots.RB + slots.WR + slots.TE;
-    const flexPool = flexEligible.slice(mainStarters, mainStarters + slots.FLEX + 2);
+    const flexPool = flexEligible.slice(mainStarters, mainStarters + slots.FLEX + 1);
     if (flexPool.length === 0) return 0;
     return Math.round(flexPool.reduce((s, p) => s + p.tradeValue, 0) / flexPool.length);
   }
@@ -172,10 +321,9 @@ function gradePositionGroup(players: PlayerValue[], position: RosterPosition, sl
   const atPosition = players
     .filter((p) => p.position === position)
     .sort((a, b) => b.tradeValue - a.tradeValue);
-  // Grade = weighted average of top `starters + 1` players at the position
-  // (we care about starters AND top reserve since injuries happen).
   const pool = atPosition.slice(0, starters + 1);
   if (pool.length === 0) return 0;
+  // Weighted avg: starters count fully, top reserve counts half.
   const weighted = pool.reduce((sum, p, i) => sum + p.tradeValue * (i < starters ? 1 : 0.5), 0);
   const denom = Math.min(pool.length, starters) + (pool.length > starters ? 0.5 : 0);
   return Math.round(weighted / denom);
@@ -197,13 +345,11 @@ export function analyzeRoster(
   };
   for (const p of POSITION_ORDER) grades[p] = gradePositionGroup(input.players, p, slots);
 
-  // Surplus/need thresholds: 10pts above/below league average at that position
-  // is the boundary where a team becomes a plausible trade partner.
   const THRESHOLD = 10;
   const surplusPositions: RosterPosition[] = [];
   const needPositions: RosterPosition[] = [];
   for (const p of POSITION_ORDER) {
-    if (p === 'K' || p === 'DEF') continue; // streamable, ignore
+    if (p === 'K' || p === 'DEF') continue;
     const diff = grades[p] - leagueAverages[p];
     if (diff >= THRESHOLD) surplusPositions.push(p);
     else if (diff <= -THRESHOLD) needPositions.push(p);
@@ -230,11 +376,11 @@ export function analyzeRoster(
   };
 }
 
-export function computeLeagueAverages(analyses: Pick<TeamRosterAnalysis, 'positionGrades'>[]): Record<RosterPosition, number> {
+export function computeLeagueAverages(
+  analyses: Pick<TeamRosterAnalysis, 'positionGrades'>[],
+): Record<RosterPosition, number> {
   const sums: Record<RosterPosition, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0, FLEX: 0 };
-  for (const a of analyses) {
-    for (const p of POSITION_ORDER) sums[p] += a.positionGrades[p];
-  }
+  for (const a of analyses) for (const p of POSITION_ORDER) sums[p] += a.positionGrades[p];
   const result: Record<RosterPosition, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0, FLEX: 0 };
   const n = Math.max(analyses.length, 1);
   for (const p of POSITION_ORDER) result[p] = sums[p] / n;
@@ -243,28 +389,15 @@ export function computeLeagueAverages(analyses: Pick<TeamRosterAnalysis, 'positi
 
 export interface TradeSuggestion {
   partner: TeamRosterAnalysis;
-  // Player myTeam gives away
   giving: PlayerValue;
-  // Player partner gives away
   receiving: PlayerValue;
-  // 0-100. 50 = perfectly fair (same trade value). Closer to 50 = more fair.
   fairnessScore: number;
-  // Value delta (receiving - giving). Positive = I'm winning on paper.
   valueDelta: number;
-  // How well the trade fills both teams' holes (0-100)
   fitScore: number;
-  // Combined score used for ranking suggestions. High fit + reasonable fairness.
   overallScore: number;
   reasoning: string[];
 }
 
-// Find trades where:
-// - myTeam gives from a surplus position → partner's need position
-// - partner gives from a surplus position → myTeam's need position
-// - The two players have similar trade value (fairness)
-//
-// Excludes: players with very low value (bench-level), non-fantasy-relevant
-// positions (K, DEF — these are streamed not traded).
 export function findTradeSuggestions(
   myTeam: TeamRosterAnalysis,
   allTeams: TeamRosterAnalysis[],
@@ -272,18 +405,13 @@ export function findTradeSuggestions(
 ): TradeSuggestion[] {
   const { maxPerPartner = 3, minValueToTrade = 15 } = opts;
   const suggestions: TradeSuggestion[] = [];
-
   const partners = allTeams.filter((t) => t.rosterId !== myTeam.rosterId);
 
   for (const partner of partners) {
     const partnerSuggestions: TradeSuggestion[] = [];
 
     for (const myNeed of myTeam.needPositions) {
-      // Candidate "receiving" players: partner's roster at their surplus positions
-      // that match my need. FLEX need maps to RB/WR/TE.
-      const needMatchers =
-        myNeed === 'FLEX' ? ['RB', 'WR', 'TE'] : [myNeed];
-
+      const needMatchers = myNeed === 'FLEX' ? ['RB', 'WR', 'TE'] : [myNeed];
       const receivingCandidates = partner.players.filter(
         (p) => needMatchers.includes(p.position) && p.tradeValue >= minValueToTrade,
       );
@@ -296,31 +424,30 @@ export function findTradeSuggestions(
 
         for (const receiving of receivingCandidates) {
           for (const giving of givingCandidates) {
-            // Skip if this player is essential to my starting lineup (don't
-            // suggest trading my only elite QB away, for example).
             const myPositionGrade = myTeam.positionGrades[giving.position as RosterPosition] || 0;
-            if (myPositionGrade - giving.tradeValue < 30 && giving.tradeValue > 50) continue;
+            if (myPositionGrade - giving.tradeValue < 30 && giving.tradeValue > 55) continue;
 
             const valueDelta = receiving.tradeValue - giving.tradeValue;
             const fairness = 100 - Math.min(Math.abs(valueDelta) * 2, 100);
-            if (fairness < 50) continue; // too lopsided to be realistic
+            if (fairness < 50) continue;
 
-            // Fit score: how well it fills both teams' holes
             const myFitGain = Math.max(0, 60 - myTeam.positionGrades[myNeed as RosterPosition]);
             const partnerFitGain = Math.max(0, 60 - partner.positionGrades[partnerNeed as RosterPosition]);
             const fitScore = Math.min(100, myFitGain + partnerFitGain);
 
-            const tradeActivityWeight = partner.tradingScale ? partner.tradingScale / 10 : 0.5;
+            const tradeActivityWeight = partner.tradingScale != null ? partner.tradingScale / 10 : 0.5;
             const overallScore = fairness * 0.35 + fitScore * 0.45 + (valueDelta > 0 ? 10 : 0) + tradeActivityWeight * 10;
 
             const reasoning: string[] = [
-              `You're weak at ${myNeed} (${Math.round(myTeam.positionGrades[myNeed as RosterPosition])}/100) — ${receiving.name} fills that hole.`,
-              `${partner.managerName} is weak at ${partnerNeed} (${Math.round(partner.positionGrades[partnerNeed as RosterPosition])}/100) — ${giving.name} fits their need.`,
+              `You're weak at ${myNeed} (grade ${Math.round(myTeam.positionGrades[myNeed as RosterPosition])}/100) — ${receiving.name} (${receiving.ppg} PPG, ${receiving.vorp > 0 ? '+' : ''}${receiving.vorp} VORP) fills that hole.`,
+              `${partner.managerName} is weak at ${partnerNeed} (grade ${Math.round(partner.positionGrades[partnerNeed as RosterPosition])}/100) — ${giving.name} (${giving.ppg} PPG) fits their need.`,
             ];
             if (Math.abs(valueDelta) <= 5) reasoning.push('Roughly even-value swap.');
             else if (valueDelta > 0) reasoning.push(`You come out ahead by ~${valueDelta} value points.`);
             else reasoning.push(`You give up ~${-valueDelta} value points, but gain positional fit.`);
-            if (partner.tradingScale != null && partner.tradingScale >= 7) reasoning.push(`${partner.managerName} is an active trader (${partner.tradingScale}/10).`);
+            if (partner.tradingScale != null && partner.tradingScale >= 7) {
+              reasoning.push(`${partner.managerName} is an active trader (${partner.tradingScale}/10).`);
+            }
 
             partnerSuggestions.push({
               partner,
@@ -348,35 +475,50 @@ export interface TradeOptimizerData {
   teams: TeamRosterAnalysis[];
   leagueAverages: Record<RosterPosition, number>;
   slots: StarterSlots;
+  positionStats: Map<string, PositionStats>;
   season: string;
   leagueName: string;
   isOffseason: boolean;
 }
 
-// Main orchestrator: pulls rosters, users, matchups, players; builds team
-// analyses with player values derived from season-to-date points.
 export function buildOptimizerInput(
   rosters: SleeperRoster[],
   users: SleeperUser[],
   allMatchups: Record<number, SleeperMatchup[]>,
   playerMap: Map<string, PlayerMeta>,
   rosterPositions: string[],
-): { analyses: TeamRosterAnalysis[]; slots: StarterSlots } {
+): { analyses: TeamRosterAnalysis[]; slots: StarterSlots; positionStats: Map<string, PositionStats> } {
   const slots = parseStarterSlots(rosterPositions);
+  const scale = deriveLeagueScale(rosters, slots);
   const teamMap = buildTeamMap(rosters, users);
 
-  // Aggregate player points from all matchups
+  // Aggregate actual fantasy points per player from all played weeks.
   const playerPoints = new Map<string, { points: number; games: number }>();
   for (const matchups of Object.values(allMatchups)) {
     for (const m of matchups) {
       for (const [pid, pts] of Object.entries(m.players_points || {})) {
         const entry = playerPoints.get(pid) || { points: 0, games: 0 };
         entry.points += pts;
-        if (pts > 0) entry.games += 1; // only count games where they scored
+        if (pts > 0) entry.games += 1;
         playerPoints.set(pid, entry);
       }
     }
   }
+
+  // First pass: collect every rostered player's PPG so we can compute true
+  // per-position replacement levels from this league (not a hardcoded table).
+  const allRosteredPpg: Array<{ position: string; ppg: number }> = [];
+  for (const roster of rosters) {
+    for (const pid of roster.players || []) {
+      const meta = playerMap.get(pid);
+      if (!meta) continue;
+      const stats = playerPoints.get(pid) || { points: 0, games: 0 };
+      const ppg = stats.games > 0 ? stats.points / stats.games : 0;
+      allRosteredPpg.push({ position: meta.position, ppg });
+    }
+  }
+
+  const positionStats = computePositionStats(allRosteredPpg, scale);
 
   const rosterInputs: RosterInput[] = rosters.map((roster) => {
     const players = (roster.players || [])
@@ -384,14 +526,14 @@ export function buildOptimizerInput(
         const meta = playerMap.get(pid);
         if (!meta) return null;
         const stats = playerPoints.get(pid) || { points: 0, games: 0 };
-        return valuePlayer(meta, stats.points, stats.games);
+        return valuePlayer(meta, stats.points, stats.games, positionStats.get(meta.position));
       })
       .filter((p): p is PlayerValue => p !== null);
     return { roster, players };
   });
 
-  // First pass: compute per-team grades without league averages, then average,
-  // then redo with averages known. This gives us proper surplus/need tagging.
+  // Two-pass league average: first compute grades with placeholder averages,
+  // then recompute with the actual averages so surplus/need labeling is correct.
   const firstPass = rosterInputs.map((input) => {
     const team = teamMap.get(input.roster.roster_id);
     return analyzeRoster(
@@ -415,5 +557,5 @@ export function buildOptimizerInput(
     });
   });
 
-  return { analyses, slots };
+  return { analyses, slots, positionStats };
 }

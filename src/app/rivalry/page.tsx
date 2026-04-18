@@ -71,7 +71,10 @@ export default async function RivalryPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <PageHeader title="Rivalry" subtitle="All-Time Head-to-Head Records (2022-2025)" />
+      <PageHeader
+        title="Rivalry"
+        subtitle={`All-Time Head-to-Head Records (${seasons[0]?.season}-${seasons[seasons.length - 1]?.season})`}
+      />
       <RivalryTool teams={teamList} h2hRecords={h2hRecords} />
     </div>
   );

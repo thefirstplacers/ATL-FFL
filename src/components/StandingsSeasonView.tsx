@@ -194,8 +194,10 @@ export default function StandingsSeasonView({
 
       <div className="glass-card overflow-hidden">
         <div className="px-6 py-4 border-b border-border/30">
-          <h2 className="text-xl font-bold">All-Time Records (2022-2025)</h2>
-          <p className="text-text-muted text-sm">Sleeper era &middot; Pre-2022 seasons were on ESPN</p>
+          <h2 className="text-xl font-bold">
+            All-Time Records{seasons.length > 0 && ` (${seasons[seasons.length - 1]}-${seasons[0]})`}
+          </h2>
+          <p className="text-text-muted text-sm">Sleeper era &middot; Pre-Sleeper seasons were on ESPN</p>
         </div>
         <div className="overflow-x-auto">
           <table className="stats-table">
