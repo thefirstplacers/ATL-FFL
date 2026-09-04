@@ -9,7 +9,7 @@ import TransactionsSeasonView from '@/components/TransactionsSeasonView';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Transactions · ATL FFL',
+  title: 'Transactions',
   description: 'Trades and waiver activity across every season of the ATL Fantasy Football League.',
 };
 
@@ -25,23 +25,21 @@ interface ProcessedTransaction {
 }
 
 export default async function TransactionsPage() {
-  const [allTimeData, playerNames] = await Promise.all([
+  // Transactions are keyed by statically-known league ids — fetch them, the
+  // season bundles, and the player-name map all in one parallel burst.
+  const [allTimeData, playerNames, transactionEntries] = await Promise.all([
     getAllTimeData(ALL_LEAGUE_IDS),
     getPlayerNames(),
+    Promise.all(
+      ALL_LEAGUE_IDS.map(async (id) => [id, await getAllTransactions(id).catch(() => [])] as const),
+    ),
   ]);
+  const transactionsByLeague = new Map(transactionEntries);
 
   const seasonTransactions: Record<string, ProcessedTransaction[]> = {};
 
-  // All season transaction fetches in parallel — avoids the previous sequential
-  // loop that blocked the page for ~1s per season.
-  const perSeason = await Promise.all(
-    allTimeData.map(async (seasonData) => {
-      const [transactions] = await Promise.all([getAllTransactions(seasonData.leagueId)]);
-      return { seasonData, transactions };
-    }),
-  );
-
-  for (const { seasonData, transactions } of perSeason) {
+  for (const seasonData of allTimeData) {
+    const transactions = transactionsByLeague.get(seasonData.leagueId) || [];
     const teamMap = buildTeamMap(seasonData.rosters, seasonData.users);
 
     seasonTransactions[seasonData.season] = transactions

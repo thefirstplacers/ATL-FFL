@@ -22,7 +22,7 @@ export default function WeekTabs({
   onBracket,
 }: WeekTabsProps) {
   return (
-    <div className="flex flex-wrap gap-2 mb-6" role="tablist" aria-label="Week selector">
+    <div className="flex flex-wrap gap-2 mb-6" role="group" aria-label="Week selector">
       {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => {
         const isPlayoff = week > regularSeasonWeeks;
         const hasData = hasDataForWeek(week);
@@ -30,8 +30,7 @@ export default function WeekTabs({
         return (
           <button
             key={week}
-            role="tab"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             aria-label={isPlayoff ? `Playoff week ${week - regularSeasonWeeks}` : `Week ${week}`}
             onClick={() => onChange(week)}
             disabled={!hasData}
@@ -57,7 +56,7 @@ export default function WeekTabs({
             bracketActive ? 'bg-gold text-navy' : 'bg-gold/20 text-gold hover:bg-gold/30'
           }`}
         >
-          🏆 Bracket
+          <span aria-hidden="true">🏆</span> Bracket
         </button>
       )}
     </div>

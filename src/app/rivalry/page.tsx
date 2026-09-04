@@ -2,14 +2,14 @@ import type { Metadata } from 'next';
 import { buildTeamMap, pairMatchups, getAllTimeDataWithMatchups } from '@/lib/sleeper';
 import { ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName } from '@/lib/utils';
-import { getWinnerLoser } from '@/lib/matchups';
+import { getWinnerLoser, isPlayedWeek } from '@/lib/matchups';
 import PageHeader from '@/components/ui/PageHeader';
 import RivalryTool from '@/components/RivalryTool';
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Rivalry · ATL FFL',
+  title: 'Rivalry',
   description: 'All-time head-to-head records between any two managers, with game-by-game history.',
 };
 
@@ -17,6 +17,16 @@ export default async function RivalryPage() {
   const seasons = await getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS);
 
   const latestSeason = seasons[seasons.length - 1];
+  if (!latestSeason) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <PageHeader title="Rivalry" subtitle="All-Time Head-to-Head Records" />
+        <div className="glass-card p-8 text-center text-text-muted">
+          League data is temporarily unavailable — try again in a minute.
+        </div>
+      </div>
+    );
+  }
   const teamMap = buildTeamMap(latestSeason.rosters, latestSeason.users);
 
   const ownerSet = new Set<string>();
@@ -42,6 +52,7 @@ export default async function RivalryPage() {
 
     for (const [weekStr, matchups] of Object.entries(seasonData.allMatchups)) {
       const week = parseInt(weekStr);
+      if (!isPlayedWeek(matchups)) continue;
       for (const { team1, team2 } of pairMatchups(matchups)) {
         const owner1 = rosterOwnerMap.get(team1.roster_id);
         const owner2 = rosterOwnerMap.get(team2.roster_id);

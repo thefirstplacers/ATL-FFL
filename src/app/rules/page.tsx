@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getLeague } from '@/lib/sleeper';
+import { getLeague, getDrafts } from '@/lib/sleeper';
 import { LEAGUE_ID, PREV_LEAGUE_ID, LEAGUE_NAME, LEAGUE_EST, DIVISIONS, DIVISION_COLORS } from '@/lib/constants';
 import { buildRulesView } from '@/lib/rules';
 import PageHeader from '@/components/ui/PageHeader';
@@ -10,7 +10,7 @@ import PageHeader from '@/components/ui/PageHeader';
 export const revalidate = 900;
 
 export const metadata: Metadata = {
-  title: 'League Rules · ATL FFL',
+  title: 'League Rules',
   description: 'Roster format, scoring, playoffs, trades, and waivers — pulled live from the Sleeper league settings.',
 };
 
@@ -26,6 +26,19 @@ export default async function RulesPage() {
 
   const rules = buildRulesView(league);
   const divisionCount = parseInt(rules.overview.find((o) => o.label === 'Divisions')?.value || '0');
+
+  // settings.draft_rounds is Sleeper's rookie-draft field (3 here) — the real
+  // draft length lives on the draft record itself, so prefer that when present
+  try {
+    const drafts = await getDrafts(league.league_id);
+    const rounds = drafts[0]?.settings?.rounds;
+    if (rounds) {
+      const row = rules.overview.find((o) => o.label === 'Draft Rounds');
+      if (row) row.value = String(rounds);
+    }
+  } catch {
+    // keep the settings-derived value
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">

@@ -29,7 +29,7 @@ async function fetchRSSItems(url: string, source: string) {
 export async function GET() {
   const feeds = await Promise.all([
     fetchRSSItems('https://www.espn.com/espn/rss/nfl/news', 'ESPN'),
-    fetchRSSItems('https://www.nfl.com/rss/rsslanding?searchString=home', 'NFL.com'),
+    fetchRSSItems('https://www.cbssports.com/rss/headlines/nfl/', 'CBS Sports'),
     fetchRSSItems('https://www.espn.com/espn/rss/fantasy', 'ESPN Fantasy'),
   ]);
 

@@ -7,7 +7,7 @@ import { BLOG_POSTS } from '@/lib/blog-posts';
 export const revalidate = 1800;
 
 export const metadata: Metadata = {
-  title: 'News & Updates · ATL FFL',
+  title: 'News & Updates',
   description: 'NFL headlines, fantasy news, Reddit discussions, and Commissioner\'s Corner posts.',
 };
 
@@ -17,7 +17,8 @@ export default async function NewsPage() {
   // own IP hits Reddit directly instead.
   const feeds = await Promise.all([
     fetchRSS('https://www.espn.com/espn/rss/nfl/news', 'ESPN', 'NFL'),
-    fetchRSS('https://www.nfl.com/rss/rsslanding?searchString=home', 'NFL.com', 'NFL'),
+    // NFL.com retired its RSS endpoint (301s to the homepage) — CBS replaces it
+    fetchRSS('https://www.cbssports.com/rss/headlines/nfl/', 'CBS Sports', 'NFL'),
     fetchRSS('https://www.espn.com/espn/rss/fantasy', 'ESPN Fantasy', 'Fantasy'),
   ]);
 

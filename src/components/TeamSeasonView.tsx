@@ -38,7 +38,6 @@ export default function TeamSeasonView({ seasonsData }: { seasonsData: SeasonDat
     ? data.weeklyResults.reduce((s, r) => s + r.points, 0) / data.weeklyResults.length
     : 0;
   const highWeek = data.weeklyResults.reduce((max, r) => r.points > max.points ? r : max, { points: 0, week: 0 } as { points: number; week: number });
-  const lowWeek = data.weeklyResults.reduce((min, r) => (r.points < min.points && r.points > 0) ? r : min, { points: 999, week: 0 } as { points: number; week: number });
 
   return (
     <div>
@@ -80,12 +79,12 @@ export default function TeamSeasonView({ seasonsData }: { seasonsData: SeasonDat
             <div className="text-text-muted text-xs">Points Against</div>
           </div>
           <div className="bg-navy rounded-lg p-3 text-center">
-            <div className="text-lg font-bold">{avgPts.toFixed(1)}</div>
+            <div className="text-lg font-bold">{data.weeklyResults.length > 0 ? avgPts.toFixed(1) : '—'}</div>
             <div className="text-text-muted text-xs">Avg/Week</div>
           </div>
           <div className="bg-navy rounded-lg p-3 text-center">
-            <div className="text-lg font-bold text-success">↑{highWeek.points.toFixed(1)}</div>
-            <div className="text-text-muted text-xs">Best (Wk {highWeek.week})</div>
+            <div className="text-lg font-bold text-success">{highWeek.week > 0 ? `↑${highWeek.points.toFixed(1)}` : '—'}</div>
+            <div className="text-text-muted text-xs">{highWeek.week > 0 ? `Best (Wk ${highWeek.week})` : 'Best Week'}</div>
           </div>
         </div>
       </div>

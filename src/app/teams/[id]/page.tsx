@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { buildTeamMap, pairMatchups, getAllTimeDataWithMatchups } from '@/lib/sleeper';
+import { isPlayedWeek } from '@/lib/matchups';
 import {
   ALL_LEAGUE_IDS,
   LEAGUE_HISTORY,
@@ -10,12 +12,16 @@ import {
 import { getManagerDisplayName, formatPoints, formatRecord } from '@/lib/utils';
 import { NFL_TEAMS, FAVORITE_TEAM_MAP } from '@/lib/nfl';
 import { getPlayerMap } from '@/lib/players';
-import PageHeader from '@/components/ui/PageHeader';
 import ManagerAvatar from '@/components/ui/ManagerAvatar';
 import TeamSeasonView from '@/components/TeamSeasonView';
 import PlayerNews from '@/components/PlayerNews';
 
 export const revalidate = 3600;
+
+// The 12 manager pages are known up front — prerender them all
+export function generateStaticParams() {
+  return Object.keys(MANAGER_INFO).map((id) => ({ id }));
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -26,13 +32,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       : manager.name
     : 'Manager';
   return {
-    title: `${name} · ATL FFL`,
+    title: name,
     description: `Season history, roster, and weekly results for ${name} in the ATL Fantasy Football League.`,
   };
 }
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: ownerId } = await params;
+  if (!MANAGER_INFO[ownerId]) notFound();
 
   const [seasons, playerMap] = await Promise.all([
     getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS),
@@ -74,6 +81,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
 
       for (const [weekStr, matchups] of Object.entries(seasonData.allMatchups)) {
         const week = parseInt(weekStr);
+        if (!isPlayedWeek(matchups)) continue;
         for (const pair of pairMatchups(matchups)) {
           const myTeam =
             pair.team1.roster_id === roster.roster_id

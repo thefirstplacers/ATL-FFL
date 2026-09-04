@@ -9,7 +9,7 @@ import TradeOptimizerClient from '@/components/TradeOptimizerClient';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Trade Target Optimizer · ATL FFL',
+  title: 'Trade Target Optimizer',
   description: 'Find trade targets for your team based on roster holes, positional surplus, and fair-value swaps.',
 };
 
@@ -19,18 +19,25 @@ export default async function TradeOptimizerPage() {
   let league, rosters, users, allMatchups;
   let isOffseason = false;
 
+  // playerMap is by far the slowest fetch — start it immediately and let the
+  // league fetches run alongside instead of the old 6-step waterfall.
+  const playerMapPromise = getPlayerMap();
+
   try {
-    league = await getLeague(LEAGUE_ID);
-    rosters = await getRosters(LEAGUE_ID);
+    [league, rosters, users, allMatchups] = await Promise.all([
+      getLeague(LEAGUE_ID),
+      getRosters(LEAGUE_ID),
+      getUsers(LEAGUE_ID),
+      getAllMatchups(LEAGUE_ID, TOTAL_WEEKS),
+    ]);
     // If current league has no rostered players yet, fall back.
     const hasPlayers = rosters.some((r) => (r.players || []).length > 0);
     if (!hasPlayers) throw new Error('Current season has no rostered players yet');
-    users = await getUsers(LEAGUE_ID);
-    allMatchups = await getAllMatchups(LEAGUE_ID, TOTAL_WEEKS);
-    // If no matchups have been played yet, pull points from last season.
-    const hasScores = Object.values(allMatchups).some((ms) =>
-      ms.some((m) => Object.keys(m.players_points || {}).length > 0),
-    );
+    // If no matchups have actually been PLAYED yet, pull points from last
+    // season. Scheduled weeks ship a fully-populated players_points of zeros,
+    // so test for a non-zero score — key presence alone kept this branch from
+    // ever firing and the optimizer valued everyone at 0.
+    const hasScores = Object.values(allMatchups).some((ms) => ms.some((m) => m.points > 0));
     if (!hasScores) {
       isOffseason = true;
       allMatchups = await getAllMatchups(PREV_LEAGUE_ID, TOTAL_WEEKS);
@@ -46,7 +53,7 @@ export default async function TradeOptimizerPage() {
     ]);
   }
 
-  const playerMap = await getPlayerMap();
+  const playerMap = await playerMapPromise;
   const { analyses, positionStats } = buildOptimizerInput(
     rosters,
     users,

@@ -8,7 +8,7 @@ import DraftSeasonView from '@/components/DraftSeasonView';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Draft Central · ATL FFL',
+  title: 'Draft Central',
   description: 'Draft history for every season and prep info for the upcoming draft.',
 };
 
@@ -33,14 +33,18 @@ async function getSeasonDraft(leagueId: string): Promise<Awaited<ReturnType<type
 }
 
 export default async function DraftPage() {
-  // Every league season — getSeasonDraft returns [] for seasons that haven't drafted yet
-  const allTimeData = await getAllTimeData(ALL_LEAGUE_IDS);
-
-  const draftsPerSeason = await Promise.all(allTimeData.map((s) => getSeasonDraft(s.leagueId)));
+  // Every league season — getSeasonDraft returns [] for seasons that haven't
+  // drafted yet. Draft fetches use the statically-known ids, so they run in
+  // parallel with the season bundles instead of after them.
+  const [allTimeData, draftEntries] = await Promise.all([
+    getAllTimeData(ALL_LEAGUE_IDS),
+    Promise.all(ALL_LEAGUE_IDS.map(async (id) => [id, await getSeasonDraft(id)] as const)),
+  ]);
+  const draftsByLeague = new Map(draftEntries);
 
   const seasonDrafts: Record<string, DraftPickData[]> = {};
-  allTimeData.forEach((seasonData, i) => {
-    const picks = draftsPerSeason[i];
+  allTimeData.forEach((seasonData) => {
+    const picks = draftsByLeague.get(seasonData.leagueId) || [];
     if (picks.length === 0) return;
     const teamMap = buildTeamMap(seasonData.rosters, seasonData.users);
     seasonDrafts[seasonData.season] = picks.map((pick) => {

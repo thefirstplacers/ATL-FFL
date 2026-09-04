@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { getLeague, getRosters, getUsers, getAllMatchups, buildTeamMap, pairMatchups } from '@/lib/sleeper';
+import { getLeague, getRosters, getUsers, getAllMatchups, buildTeamMap, pairMatchups, getAvatarUrl } from '@/lib/sleeper';
+import ManagerAvatar from '@/components/ui/ManagerAvatar';
 import { LEAGUE_ID, PREV_LEAGUE_ID, LEAGUE_NAME, LEAGUE_EST, LEAGUE_HISTORY, DIVISIONS, DIVISION_COLORS, KICKOFF_DATE, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName, formatPoints, formatRecord } from '@/lib/utils';
 import { getWinnerLoser } from '@/lib/matchups';
@@ -8,14 +9,18 @@ import CountdownTimer from '@/components/CountdownTimer';
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const [prevLeague, rosters, users, allMatchups, currentRosters, currentUsers] = await Promise.all([
+  const [prevLeague, rosters, users, allMatchups, currentLeague, currentRosters, currentUsers] = await Promise.all([
     getLeague(PREV_LEAGUE_ID),
     getRosters(PREV_LEAGUE_ID),
     getUsers(PREV_LEAGUE_ID),
     getAllMatchups(PREV_LEAGUE_ID, REGULAR_SEASON_WEEKS),
+    getLeague(LEAGUE_ID).catch(() => null),
     getRosters(LEAGUE_ID).catch(() => []),
     getUsers(LEAGUE_ID).catch(() => []),
   ]);
+
+  // Division avatars uploaded in Sleeper (league metadata: division_N_avatar)
+  const leagueMeta = (currentLeague?.metadata || {}) as Record<string, string>;
 
   const prevSeason = prevLeague.season;
   const prevSeasonNum = parseInt(prevSeason, 10);
@@ -65,7 +70,7 @@ export default async function HomePage() {
   const divisionTeamMap = currentRosters.length > 0 && currentUsers.length > 0
     ? buildTeamMap(currentRosters, currentUsers)
     : teamMap;
-  const divisionTeams: Record<number, Array<{ rosterId: number; name: string; teamName: string; wins: number; losses: number }>> = {};
+  const divisionTeams: Record<number, Array<{ rosterId: number; name: string; teamName: string; wins: number; losses: number; avatar: string }>> = {};
   for (const roster of divisionRosters) {
     const div = (roster.settings as Record<string, number>).division || 1;
     if (!divisionTeams[div]) divisionTeams[div] = [];
@@ -76,13 +81,16 @@ export default async function HomePage() {
       teamName: team?.teamName || '',
       wins: roster.settings.wins,
       losses: roster.settings.losses,
+      avatar: getAvatarUrl(team?.avatar || null),
     });
   }
   for (const div of Object.values(divisionTeams)) div.sort((a, b) => b.wins - a.wins);
 
   const championHistoryEntries = Object.values(LEAGUE_HISTORY).sort((a, b) => b.season - a.season);
-  const currentSeason = new Date().getFullYear();
-  const yearsActive = currentSeason - LEAGUE_EST + 1;
+  // Derive from the live Sleeper season, not the calendar year (which is off by
+  // one every January-August); fall back to prev season + 1 if the fetch failed
+  const seasonYear = currentLeague ? parseInt(currentLeague.season) : prevSeasonNum + 1;
+  const yearsActive = seasonYear - LEAGUE_EST + 1;
 
   return (
     <div className="min-h-screen">
@@ -112,10 +120,20 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {championRoster && (
       <section className="max-w-7xl mx-auto px-4 -mt-8 relative z-10">
         <div className="glass-card animate-pulse-gold p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-3xl shrink-0" aria-hidden="true">
-            🏆
+          <div className="relative shrink-0">
+            <ManagerAvatar
+              src={championManager?.photo || '/managers/question.jpg'}
+              alt={`${championManager?.name || 'Champion'} photo`}
+              size={80}
+              ring="gold"
+              priority
+            />
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-base" aria-hidden="true">
+              🏆
+            </div>
           </div>
           <div className="text-center md:text-left flex-1">
             <div className="text-gold text-sm font-semibold uppercase tracking-wider">{prevSeason} League Champion</div>
@@ -124,8 +142,8 @@ export default async function HomePage() {
               <span className="text-text-secondary font-normal ml-2">&quot;{championInfo?.teamName}&quot;</span>
             </h2>
             <p className="text-text-secondary mt-1">
-              {formatRecord(championRoster?.settings.wins || 0, championRoster?.settings.losses || 0, 0)} Regular Season &middot;{' '}
-              {formatPoints(fptsOf(championRoster!))} Total Points
+              {formatRecord(championRoster.settings.wins, championRoster.settings.losses, 0)} Regular Season &middot;{' '}
+              {formatPoints(fptsOf(championRoster))} Total Points
             </p>
           </div>
           <Link href="/matchups" className="px-4 py-2 bg-gold/10 border border-gold/30 text-gold rounded-lg hover:bg-gold/20 transition-colors whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-gold">
@@ -133,6 +151,7 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
+      )}
 
       <section className="max-w-7xl mx-auto px-4 mt-8">
         <div className="glass-card overflow-hidden">
@@ -201,16 +220,24 @@ export default async function HomePage() {
       <section className="max-w-7xl mx-auto px-4 mt-8 mb-12">
         <h2 className="text-2xl font-bold mb-6">Divisions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map((divNum) => (
+          {[1, 2, 3].map((divNum) => {
+            const divAvatar = leagueMeta[`division_${divNum}_avatar`];
+            return (
             <div key={divNum} className="glass-card overflow-hidden">
-              <div className="px-5 py-3 font-bold text-sm uppercase tracking-wider" style={{ backgroundColor: DIVISION_COLORS[divNum] + '33', color: '#fff', borderBottom: `2px solid ${DIVISION_COLORS[divNum]}` }}>
-                {DIVISIONS[divNum]}
+              <div className="px-5 py-3 font-bold text-sm uppercase tracking-wider flex items-center gap-2" style={{ backgroundColor: DIVISION_COLORS[divNum] + '33', color: '#fff', borderBottom: `2px solid ${DIVISION_COLORS[divNum]}` }}>
+                {divAvatar && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={divAvatar} alt="" width={24} height={24} className="rounded-full" loading="lazy" />
+                )}
+                {leagueMeta[`division_${divNum}`] || DIVISIONS[divNum]}
               </div>
               <div className="p-4 space-y-3">
                 {(divisionTeams[divNum] || []).map((team, i) => (
                   <div key={team.rosterId} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="text-text-muted text-sm w-4">{i + 1}.</span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={team.avatar} alt="" width={28} height={28} className="rounded-full" loading="lazy" />
                       <div>
                         <div className="font-medium text-sm">{team.name}</div>
                         <div className="text-text-muted text-xs">{team.teamName}</div>
@@ -221,7 +248,8 @@ export default async function HomePage() {
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

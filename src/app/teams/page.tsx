@@ -11,7 +11,7 @@ import ManagerAvatar from '@/components/ui/ManagerAvatar';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Teams & Managers · ATL FFL',
+  title: 'Teams & Managers',
   description: 'Meet the 12 managers and their teams in the ATL Fantasy Football League.',
 };
 
@@ -27,7 +27,11 @@ export default async function TeamsPage() {
 
   const prevTeamMap = buildTeamMap(prevRosters, prevUsers);
   const currentTeamMap = buildTeamMap(currentRosters, currentUsers);
-  const prevChampionRosterId = Object.values(LEAGUE_HISTORY).find((h) => h.season === 2025)?.championRosterId;
+  // Reigning champion = the most recent LEAGUE_HISTORY entry with a real
+  // roster id (ESPN-era entries use 0), so this survives every season rollover
+  const prevChampionRosterId = Object.values(LEAGUE_HISTORY)
+    .filter((h) => h.championRosterId > 0)
+    .sort((a, b) => b.season - a.season)[0]?.championRosterId;
 
   const teams = prevRosters
     .map((roster) => {

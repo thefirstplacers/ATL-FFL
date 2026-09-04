@@ -9,7 +9,7 @@ import RecordsSeasonView from '@/components/RecordsSeasonView';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Records & Awards · ATL FFL',
+  title: 'Records & Awards',
   description: 'Top single-week scores, biggest blowouts, closest games, and season leaders across every year.',
 };
 
@@ -65,6 +65,9 @@ export default async function RecordsPage() {
 
     for (const [weekStr, matchups] of Object.entries(seasonData.allMatchups)) {
       const week = parseInt(weekStr);
+      // Scheduled-but-unplayed weeks come back with 0 points on every roster —
+      // skip them so a fresh season doesn't seed fake 0-pt records
+      if (matchups.every((m) => !m.points)) continue;
       let weekHigh = { rosterId: 0, points: 0 };
 
       for (const m of matchups) {

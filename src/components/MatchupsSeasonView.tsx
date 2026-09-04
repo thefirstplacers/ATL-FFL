@@ -146,8 +146,49 @@ export default function MatchupsSeasonView({
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {matchups.map((matchup) => {
+              // Scheduled-but-unplayed games arrive as 0-0 — render them neutrally
+              // instead of inventing a winner. Real ties get the same treatment.
+              const played = matchup.team1.points > 0 || matchup.team2.points > 0;
+              const isTie = matchup.team1.points === matchup.team2.points;
+              const undecided = !played || isTie;
               const winner = matchup.team1.points > matchup.team2.points ? matchup.team1 : matchup.team2;
               const loser = matchup.team1.points > matchup.team2.points ? matchup.team2 : matchup.team1;
+              if (undecided) {
+                return (
+                  <div key={matchup.matchupId} className="glass-card overflow-hidden">
+                    <div className="p-4">
+                      {[matchup.team1, matchup.team2].map((team, i) => (
+                        <div key={team.rosterId}>
+                          {i === 1 && <div className="text-center text-text-muted text-xs font-medium my-2">VS</div>}
+                          <div className="flex items-center gap-3">
+                            <Link
+                              href={`/teams/${team.ownerId}`}
+                              className="focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded-full"
+                            >
+                              <ManagerAvatar src={team.photo} alt={team.name} size={40} />
+                            </Link>
+                            <div className="flex-1">
+                              <Link
+                                href={`/teams/${team.ownerId}`}
+                                className="font-bold hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
+                              >
+                                {team.name}
+                              </Link>
+                              <div className="text-text-muted text-xs">{team.teamName}</div>
+                            </div>
+                            <div className="text-2xl font-black text-text-secondary">
+                              {played ? team.points.toFixed(2) : '—'}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-surface/50 px-4 py-2 text-text-muted text-xs text-center">
+                      {played ? 'Tie game' : 'Scheduled · not yet played'}
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={matchup.matchupId} className="glass-card overflow-hidden">
                   <div className="p-4">

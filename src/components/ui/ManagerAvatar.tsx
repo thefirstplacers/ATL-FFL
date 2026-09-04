@@ -33,7 +33,6 @@ export default function ManagerAvatar({
       width={size}
       height={size}
       priority={priority}
-      unoptimized={src.startsWith('/managers/')}
       className={`rounded-full object-cover ${ringClasses[ring]} ${dim ? 'opacity-75' : ''} ${className}`}
       style={{ width: size, height: size }}
     />

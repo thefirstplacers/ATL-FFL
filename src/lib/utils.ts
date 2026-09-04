@@ -58,6 +58,7 @@ export function ordinalSuffix(n: number): string {
 
 export function timeAgo(dateStr: string): string {
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return ''; // unparseable pubDate — show nothing, not "Invalid Date"
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 

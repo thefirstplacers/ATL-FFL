@@ -8,7 +8,7 @@ import MatchupsSeasonView from '@/components/MatchupsSeasonView';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Matchups · ATL FFL',
+  title: 'Matchups',
   description: 'Week-by-week matchup results and playoff brackets across every season.',
 };
 
@@ -37,15 +37,19 @@ interface BracketEntry {
 }
 
 export default async function MatchupsPage() {
-  const seasons = await getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, TOTAL_WEEKS);
-
-  const brackets = await Promise.all(
-    seasons.map((s) => getWinnersBracket(s.leagueId).catch(() => [])),
-  );
+  // Brackets are keyed by the statically-known league ids, so they can load in
+  // parallel with the season data instead of waiting on it
+  const [seasons, bracketEntries] = await Promise.all([
+    getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, TOTAL_WEEKS),
+    Promise.all(
+      ALL_LEAGUE_IDS.map(async (id) => [id, await getWinnersBracket(id).catch(() => [])] as const),
+    ),
+  ]);
+  const bracketsByLeague = new Map(bracketEntries);
 
   const allSeasonMatchups: Record<string, { weeklyMatchups: Record<number, WeeklyMatchup[]>; bracketData: BracketEntry[] }> = {};
 
-  seasons.forEach((seasonData, idx) => {
+  seasons.forEach((seasonData) => {
     const teamMap = buildTeamMap(seasonData.rosters, seasonData.users);
 
     const weeklyMatchups: Record<number, WeeklyMatchup[]> = {};
@@ -70,7 +74,7 @@ export default async function MatchupsPage() {
       });
     }
 
-    const bracketData: BracketEntry[] = brackets[idx].map((match) => {
+    const bracketData: BracketEntry[] = (bracketsByLeague.get(seasonData.leagueId) || []).map((match) => {
       const t1Id = typeof match.t1 === 'number' ? match.t1 : 0;
       const t2Id = typeof match.t2 === 'number' ? match.t2 : 0;
       const getInfo = (id: number) => {

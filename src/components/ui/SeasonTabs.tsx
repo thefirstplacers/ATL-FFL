@@ -9,14 +9,15 @@ interface SeasonTabsProps {
 
 export default function SeasonTabs({ seasons, selected, onChange, renderExtra }: SeasonTabsProps) {
   return (
-    <div className="flex gap-2 mb-6 flex-wrap" role="tablist" aria-label="Season selector">
+    // Plain toggle buttons, not ARIA tabs: the full tab pattern needs roving
+    // tabindex + tabpanel wiring that these simple filters don't have
+    <div className="flex gap-2 mb-6 flex-wrap" role="group" aria-label="Season selector">
       {seasons.map((season) => {
         const isActive = selected === season;
         return (
           <button
             key={season}
-            role="tab"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             onClick={() => onChange(season)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-navy flex items-center gap-2 ${
               isActive ? 'bg-gold text-navy' : 'bg-surface text-text-secondary hover:bg-surface-hover'

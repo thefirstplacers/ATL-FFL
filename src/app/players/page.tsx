@@ -9,7 +9,7 @@ import PlayerPoolClient from '@/components/PlayerPoolClient';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Player Pool · ATL FFL',
+  title: 'Player Pool',
   description: 'Browse every NFL player available in the league. Filter by position and see who is rostered.',
 };
 
@@ -34,6 +34,9 @@ export default async function PlayersPage() {
   const posOrder: Record<string, number> = { QB: 1, RB: 2, WR: 3, TE: 4, K: 5, DEF: 6 };
   const playerList = [...playerMap.values()]
     .filter(isFantasyRelevant)
+    // Free agents nobody rosters are noise (practice-squad churn) and they used
+    // to double the page payload — keep NFL-rostered players plus anyone owned
+    .filter((p) => p.team !== 'FA' || rosteredPlayers.has(p.id))
     .map((p) => {
       const rostered = rosteredPlayers.get(p.id);
       return {

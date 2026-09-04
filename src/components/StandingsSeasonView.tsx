@@ -50,6 +50,8 @@ export default function StandingsSeasonView({
   );
   const [selectedSeason, setSelectedSeason] = useState(seasons[0]);
   const standings = seasonStandings[selectedSeason] || [];
+  // ESPN-era seasons carry division 0 (no division data) and empty ownerIds
+  const isEspnEra = standings.length > 0 && standings.every((t) => t.division === 0);
 
   const divisionStandings = useMemo(() => {
     const byDiv: Record<number, StandingsTeam[]> = {};
@@ -68,7 +70,8 @@ export default function StandingsSeasonView({
 
       <div className="glass-card overflow-hidden mb-8">
         <div className="px-6 py-4 border-b border-border/30">
-          <h2 className="text-xl font-bold">{selectedSeason} Overall Standings</h2>
+          <h2 className="text-xl font-bold">{selectedSeason} {isEspnEra ? 'Final Standings' : 'Overall Standings'}</h2>
+          {isEspnEra && <p className="text-text-muted text-sm">ESPN era &middot; ranked by final playoff finish</p>}
         </div>
         <div className="overflow-x-auto">
           <table className="stats-table">
@@ -76,7 +79,7 @@ export default function StandingsSeasonView({
               <tr>
                 <th>Rank</th>
                 <th>Team</th>
-                <th>Division</th>
+                {!isEspnEra && <th>Division</th>}
                 <th>W</th>
                 <th>L</th>
                 <th>Win %</th>
@@ -92,34 +95,46 @@ export default function StandingsSeasonView({
                     {i + 1}{team.isChampion && <span aria-label="Champion"> 🏆</span>}
                   </td>
                   <td>
-                    <Link
-                      href={`/teams/${team.ownerId}`}
-                      className="flex items-center gap-3 hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
-                    >
-                      <ManagerAvatar src={team.photo} alt={team.name} size={32} />
-                      <div>
-                        <div className="font-medium">{team.name}</div>
-                        <div className="text-text-muted text-xs">{team.teamName}</div>
+                    {team.ownerId ? (
+                      <Link
+                        href={`/teams/${team.ownerId}`}
+                        className="flex items-center gap-3 hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
+                      >
+                        <ManagerAvatar src={team.photo} alt={team.name} size={32} />
+                        <div>
+                          <div className="font-medium">{team.name}</div>
+                          <div className="text-text-muted text-xs">{team.teamName}</div>
+                        </div>
+                      </Link>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <ManagerAvatar src={team.photo} alt={team.name} size={32} />
+                        <div>
+                          <div className="font-medium">{team.name}</div>
+                          <div className="text-text-muted text-xs">{team.teamName}</div>
+                        </div>
                       </div>
-                    </Link>
+                    )}
                   </td>
-                  <td>
-                    <span
-                      className="px-2 py-1 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: (divisionColors[team.division] || '#666') + '33',
-                        color: '#fff',
-                      }}
-                    >
-                      {divisions[team.division] || `Div ${team.division}`}
-                    </span>
-                  </td>
+                  {!isEspnEra && (
+                    <td>
+                      <span
+                        className="px-2 py-1 rounded text-xs font-medium"
+                        style={{
+                          backgroundColor: (divisionColors[team.division] || '#666') + '33',
+                          color: '#fff',
+                        }}
+                      >
+                        {divisions[team.division] || `Div ${team.division}`}
+                      </span>
+                    </td>
+                  )}
                   <td className="font-bold text-success">{team.wins}</td>
                   <td className="font-bold text-danger">{team.losses}</td>
                   <td className="text-text-secondary">{(team.winPct * 100).toFixed(0)}%</td>
                   <td className="font-mono">{team.fpts.toFixed(2)}</td>
                   <td className="font-mono text-text-secondary">{team.fptsAgainst.toFixed(2)}</td>
-                  <td className={`font-mono font-bold ${team.diff > 0 ? 'text-success' : 'text-danger'}`}>
+                  <td className={`font-mono font-bold ${team.diff > 0 ? 'text-success' : team.diff < 0 ? 'text-danger' : 'text-text-muted'}`}>
                     {team.diff > 0 ? '+' : ''}{team.diff.toFixed(2)}
                   </td>
                 </tr>
@@ -128,10 +143,13 @@ export default function StandingsSeasonView({
           </table>
         </div>
         <div className="px-6 py-3 bg-surface/50 text-text-muted text-sm">
-          Top 6 teams qualified for playoffs &middot; Division winners get top 3 seeds
+          {isEspnEra
+            ? 'Played on ESPN before the league moved to Sleeper in 2022'
+            : 'Top 6 teams qualified for playoffs · Division winners get top 3 seeds'}
         </div>
       </div>
 
+      {!isEspnEra && (<>
       <h2 className="text-xl font-bold mb-4">{selectedSeason} Division Standings</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {Object.keys(divisionStandings).sort().map((divStr) => {
@@ -169,9 +187,13 @@ export default function StandingsSeasonView({
           );
         })}
       </div>
+      </>)}
 
       <div className="glass-card p-6 mb-8">
         <h2 className="text-xl font-bold mb-4">{selectedSeason} Points Scored</h2>
+        {maxPts <= 1 ? (
+          <p className="text-text-muted text-sm">No games played yet — the bars fill in after Week 1.</p>
+        ) : (
         <div className="space-y-3">
           {standings.map((team) => {
             const pct = (team.fpts / maxPts) * 100;
@@ -190,12 +212,16 @@ export default function StandingsSeasonView({
             );
           })}
         </div>
+        )}
       </div>
 
       <div className="glass-card overflow-hidden">
         <div className="px-6 py-4 border-b border-border/30">
           <h2 className="text-xl font-bold">
-            All-Time Records{seasons.length > 0 && ` (${seasons[seasons.length - 1]}-${seasons[0]})`}
+            All-Time Records{(() => {
+              const sleeperSeasons = seasons.filter((s) => (seasonStandings[s] || []).some((t) => t.division > 0));
+              return sleeperSeasons.length > 0 ? ` (${sleeperSeasons[sleeperSeasons.length - 1]}-${sleeperSeasons[0]})` : '';
+            })()}
           </h2>
           <p className="text-text-muted text-sm">Sleeper era &middot; Pre-Sleeper seasons were on ESPN</p>
         </div>

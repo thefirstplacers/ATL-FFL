@@ -4,6 +4,15 @@ import type { BlogPost } from './types';
 // to a CMS later) without touching the UI.
 export const BLOG_POSTS: BlogPost[] = [
   {
+    id: '2026-09-season-kickoff',
+    title: 'Season 8 Is Here — Draft Recap & Week 1',
+    author: 'Grant (Commissioner)',
+    date: '2026-09-04',
+    content:
+      "The 2026 draft is in the books! Fifteen rounds, twelve teams, and at least one pick that made the group chat go silent. Carter kicked things off with Bijan at 1.01, Justin paired Jahmyr Gibbs with Josh Allen, and the rest of you... well, the draft board doesn't lie — it's all on the Draft page. Rosters lock into battle Thursday night when the season kicks off. Set your lineups, check the waiver wire after the first injury reports, and remember: the Unicorns are defending champs until someone takes it from them. Good luck in Week 1 — may your studs stay healthy and your opponents' kickers miss left.",
+    category: 'Commissioner',
+  },
+  {
     id: '2026-04-rookie-preview',
     title: '2026 Rookie Class Preview',
     author: 'ATL FFL Staff',

@@ -75,7 +75,7 @@ export default function RedditFeed({ subreddit = 'fantasyfootball' }: { subreddi
     <div className="glass-card overflow-hidden mb-6">
       <div className="px-5 py-3 border-b border-border/30 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[#FF4500] flex items-center justify-center text-white font-bold text-xs">
+          <div className="w-8 h-8 rounded-full bg-[#FF4500] flex items-center justify-center text-black font-bold text-xs" aria-hidden="true">
             r/
           </div>
           <div>

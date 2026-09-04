@@ -44,14 +44,13 @@ export default function RivalryTool({ teams, h2hRecords }: { teams: Team[]; h2hR
         ].map((selector) => (
           <div key={selector.label}>
             <label className="text-text-muted text-sm mb-2 block font-medium">{selector.label}</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="radiogroup" aria-label={selector.label}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="group" aria-label={selector.label}>
               {teams.map((team) => {
                 const isActive = selector.value === team.ownerId;
                 return (
                   <button
                     key={team.ownerId}
-                    role="radio"
-                    aria-checked={isActive}
+                    aria-pressed={isActive}
                     onClick={() => selector.setValue(team.ownerId)}
                     className={`flex items-center gap-2 p-3 rounded-lg text-sm transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gold ${
                       isActive ? 'bg-gold text-navy font-bold' : 'bg-surface hover:bg-surface-hover text-text-secondary'

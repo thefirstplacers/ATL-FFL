@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { buildTeamMap, getAllTimeDataWithMatchups } from '@/lib/sleeper';
 import { ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName, getManagerPhoto } from '@/lib/utils';
+import { playedWeeksOnly } from '@/lib/matchups';
 import type { SleeperRoster, SleeperUser, SleeperMatchup } from '@/lib/types';
 import PageHeader from '@/components/ui/PageHeader';
 import RankingsSeasonView from '@/components/RankingsSeasonView';
@@ -9,7 +10,7 @@ import RankingsSeasonView from '@/components/RankingsSeasonView';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Power Rankings · ATL FFL',
+  title: 'Power Rankings',
   description: 'Algorithmic power rankings combining win %, points scored, schedule strength, consistency, and recent form.',
 };
 
@@ -128,7 +129,11 @@ export default async function RankingsPage() {
 
   const seasonRankings: Record<string, RankingEntry[]> = {};
   for (const s of seasons) {
-    seasonRankings[s.season] = computeRankings(s.rosters, s.users, s.allMatchups);
+    // A season with no played games would rank everyone 35.0 with fake perfect
+    // consistency — hold its tab back until real scores exist
+    const played = playedWeeksOnly(s.allMatchups);
+    if (Object.keys(played).length === 0) continue;
+    seasonRankings[s.season] = computeRankings(s.rosters, s.users, played);
   }
 
   return (

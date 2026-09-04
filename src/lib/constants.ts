@@ -50,8 +50,9 @@ export const FAAB_BUDGET = 100;
 
 // 2026 draft — completed Sunday Aug 30, 7:00 PM ET (Sleeper draft 1391940028808065024)
 export const DRAFT_DATE = '2026-08-30T19:00:00';
-// Week 1 kickoff (Thursday night opener) — homepage countdown target while in-season
-export const KICKOFF_DATE = '2026-09-10T20:20:00';
+// Week 1 kickoff (Thursday night opener) — homepage countdown target while
+// in-season. Explicit ET offset so every visitor counts down to the same moment.
+export const KICKOFF_DATE = '2026-09-10T20:20:00-04:00';
 
 // Scoring highlights
 export const SCORING = {

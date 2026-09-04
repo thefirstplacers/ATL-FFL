@@ -42,7 +42,7 @@ export default function TransactionsSeasonView({ seasonTransactions }: { seasonT
     <div>
       <SeasonTabs seasons={seasons} selected={selectedSeason} onChange={handleSeasonChange} />
 
-      <div className="flex gap-2 mb-6 flex-wrap" role="radiogroup" aria-label="Transaction type">
+      <div className="flex gap-2 mb-6 flex-wrap" role="group" aria-label="Transaction type">
         {[
           { key: 'all' as const, label: 'All' },
           { key: 'trade' as const, label: 'Trades' },
@@ -51,8 +51,7 @@ export default function TransactionsSeasonView({ seasonTransactions }: { seasonT
         ].map((f) => (
           <button
             key={f.key}
-            role="radio"
-            aria-checked={filter === f.key}
+            aria-pressed={filter === f.key}
             onClick={() => { setFilter(f.key); setPage(0); }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold ${filter === f.key ? 'bg-info text-navy' : 'bg-surface text-text-secondary hover:bg-surface-hover'}`}
           >

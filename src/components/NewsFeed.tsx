@@ -22,7 +22,9 @@ interface BlogPost {
   category: string;
 }
 
-const FILTERS = ['All', 'NFL', 'Fantasy', 'Draft'];
+// Only categories the feeds actually emit — a filter with no possible matches
+// just renders a fake "no articles" outage
+const FILTERS = ['All', 'NFL', 'Fantasy'];
 
 const TWITTER_ACCOUNTS = [
   { handle: 'AdamSchefter', label: 'Adam Schefter', desc: 'Breaking NFL News' },
@@ -134,7 +136,7 @@ export default function NewsFeed({ news, blogPosts }: { news: NewsItem[]; blogPo
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activeFilter === filter ? 'bg-info text-white' : 'bg-surface text-text-secondary hover:bg-surface-hover'
+                  activeFilter === filter ? 'bg-info text-navy font-bold' : 'bg-surface text-text-secondary hover:bg-surface-hover'
                 }`}
               >
                 {filter}

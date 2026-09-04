@@ -2,6 +2,23 @@ export interface ScoredTeam {
   points: number;
 }
 
+// A scheduled-but-unplayed week comes back from Sleeper with 0 points on every
+// roster. Treat those as "no data" so a fresh season doesn't pollute records,
+// rankings, head-to-head history, or team pages with fake 0-0 results.
+export function isPlayedWeek(matchups: Array<{ points: number }>): boolean {
+  return matchups.some((m) => m.points > 0);
+}
+
+export function playedWeeksOnly<T extends { points: number }>(
+  all: Record<number, T[]>,
+): Record<number, T[]> {
+  const out: Record<number, T[]> = {};
+  for (const [week, ms] of Object.entries(all)) {
+    if (isPlayedWeek(ms)) out[parseInt(week)] = ms;
+  }
+  return out;
+}
+
 export function getWinnerLoser<T extends ScoredTeam>(
   team1: T,
   team2: T,

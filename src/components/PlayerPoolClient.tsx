@@ -51,6 +51,7 @@ export default function PlayerPoolClient({ players }: { players: Player[] }) {
       <div className="flex flex-wrap gap-3 mb-6">
         <input
           type="text"
+          aria-label="Search players"
           placeholder="Search players..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
@@ -79,7 +80,7 @@ export default function PlayerPoolClient({ players }: { players: Player[] }) {
               key={f.key}
               onClick={() => { setAvailFilter(f.key); setPage(0); }}
               className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                availFilter === f.key ? 'bg-info text-white' : 'bg-surface text-text-secondary hover:bg-surface-hover'
+                availFilter === f.key ? 'bg-info text-navy font-bold' : 'bg-surface text-text-secondary hover:bg-surface-hover'
               }`}
             >
               {f.label}

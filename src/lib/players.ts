@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import type { SleeperPlayer } from './types';
 
 export interface PlayerMeta {
@@ -25,14 +26,7 @@ type RawPlayer = {
 };
 
 const PLAYER_DB_URL = 'https://api.sleeper.app/v1/players/nfl';
-
-// Sleeper's full player DB is ~10k entries / ~5MB. We only need a subset
-// of fields for the UI, and Next.js's Data Cache has a per-entry size limit
-// (~2MB) that the raw response blows past. So we fetch once per call and
-// cache the *processed* map at the module level for the life of the worker.
-let cachedPlayers: Map<string, PlayerMeta> | null = null;
-let cacheExpiry = 0;
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const FANTASY_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K', 'DEF']);
 
 function normalize(id: string, raw: RawPlayer): PlayerMeta {
   const fantasyPositions = raw.fantasy_positions || (raw.position ? [raw.position] : []);
@@ -49,18 +43,39 @@ function normalize(id: string, raw: RawPlayer): PlayerMeta {
   };
 }
 
+// Sleeper's full player DB is ~11k entries / 10-20MB — far past Next's ~2MB
+// per-entry Data Cache limit, which is why the raw fetch can't use the fetch
+// cache. Instead we cache a SLIM projection (fantasy positions only, 9 fields)
+// via unstable_cache so warm lambdas share it and pages can prerender, with a
+// module-level memo on top to avoid re-hydrating the Map within a worker.
+const loadSlimPlayers = unstable_cache(
+  async (): Promise<Array<PlayerMeta>> => {
+    const res = await fetch(PLAYER_DB_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Sleeper players returned ${res.status}`);
+    const raw = (await res.json()) as Record<string, RawPlayer>;
+    const out: PlayerMeta[] = [];
+    for (const [id, player] of Object.entries(raw)) {
+      if (!FANTASY_POSITIONS.has(player.position || '')) continue;
+      out.push(normalize(id, player));
+    }
+    return out;
+  },
+  ['sleeper-players-slim'],
+  { revalidate: 6 * 60 * 60 },
+);
+
+let cachedPlayers: Map<string, PlayerMeta> | null = null;
+let cacheExpiry = 0;
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
 export async function getPlayerMap(): Promise<Map<string, PlayerMeta>> {
   const now = Date.now();
   if (cachedPlayers && now < cacheExpiry) return cachedPlayers;
 
   try {
-    const res = await fetch(PLAYER_DB_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Sleeper players returned ${res.status}`);
-    const raw = (await res.json()) as Record<string, RawPlayer>;
+    const slim = await loadSlimPlayers();
     const map = new Map<string, PlayerMeta>();
-    for (const [id, player] of Object.entries(raw)) {
-      map.set(id, normalize(id, player));
-    }
+    for (const p of slim) map.set(p.id, p);
     cachedPlayers = map;
     cacheExpiry = now + CACHE_TTL_MS;
     return map;
@@ -78,7 +93,7 @@ export async function getPlayerNames(): Promise<Record<string, string>> {
 }
 
 export function isFantasyRelevant(p: PlayerMeta): boolean {
-  if (!['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].includes(p.position)) return false;
+  if (!FANTASY_POSITIONS.has(p.position)) return false;
   if (p.team === 'FA' && p.status === 'Inactive') return false;
   return true;
 }
