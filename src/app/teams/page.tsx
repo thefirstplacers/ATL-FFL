@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getRosters, getUsers, buildTeamMap } from '@/lib/sleeper';
-import { PREV_LEAGUE_ID, LEAGUE_ID, LEAGUE_HISTORY, DIVISIONS, DIVISION_COLORS, MANAGER_INFO } from '@/lib/constants';
-import { getManagerDisplayName, formatPoints, formatRecord } from '@/lib/utils';
+import { getRosters, getUsers, buildTeamMap, getAllTimeData } from '@/lib/sleeper';
+import { PREV_LEAGUE_ID, LEAGUE_ID, ALL_LEAGUE_IDS, LEAGUE_HISTORY, DIVISIONS, DIVISION_COLORS, MANAGER_INFO } from '@/lib/constants';
+import { getManagerDisplayName, formatRecord } from '@/lib/utils';
+import { ESPN_HISTORY } from '@/lib/espn-adapter';
 import { NFL_TEAMS, FAVORITE_TEAM_MAP, getTeamLogoUrl, MODE_STYLES } from '@/lib/nfl';
 import PageHeader from '@/components/ui/PageHeader';
 import ManagerAvatar from '@/components/ui/ManagerAvatar';
@@ -16,9 +17,10 @@ export const metadata: Metadata = {
 };
 
 export default async function TeamsPage() {
-  // Pull current season rosters for the most up-to-date team names, and prior
-  // season rosters for finalized records (the current season may be in pre-draft).
-  const [currentRosters, currentUsers, prevRosters, prevUsers] = await Promise.all([
+  // Current rosters drive the card list; every past season (plus the ESPN era)
+  // feeds the all-time career records shown on each card.
+  const [allTime, currentRosters, currentUsers, prevRosters, prevUsers] = await Promise.all([
+    getAllTimeData(ALL_LEAGUE_IDS),
     getRosters(LEAGUE_ID).catch(() => []),
     getUsers(LEAGUE_ID).catch(() => []),
     getRosters(PREV_LEAGUE_ID),
@@ -29,17 +31,42 @@ export default async function TeamsPage() {
   const currentTeamMap = buildTeamMap(currentRosters, currentUsers);
   // Reigning champion = the most recent LEAGUE_HISTORY entry with a real
   // roster id (ESPN-era entries use 0), so this survives every season rollover
-  const prevChampionRosterId = Object.values(LEAGUE_HISTORY)
+  const reigning = Object.values(LEAGUE_HISTORY)
     .filter((h) => h.championRosterId > 0)
-    .sort((a, b) => b.season - a.season)[0]?.championRosterId;
+    .sort((a, b) => b.season - a.season)[0];
+  const prevChampionRosterId = reigning?.championRosterId;
+
+  // All-time career records per owner: every Sleeper season + mapped ESPN era
+  const careers = new Map<string, { wins: number; losses: number; titles: number }>();
+  const addCareer = (ownerId: string, wins: number, losses: number, title: boolean) => {
+    const c = careers.get(ownerId) || { wins: 0, losses: 0, titles: 0 };
+    c.wins += wins;
+    c.losses += losses;
+    if (title) c.titles += 1;
+    careers.set(ownerId, c);
+  };
+  for (const seasonData of allTime) {
+    const champInfo = Object.values(LEAGUE_HISTORY).find((h) => h.id === seasonData.leagueId);
+    for (const r of seasonData.rosters) {
+      addCareer(r.owner_id, r.settings.wins, r.settings.losses, r.roster_id === champInfo?.championRosterId);
+    }
+  }
+  for (const espn of Object.values(ESPN_HISTORY)) {
+    for (const t of espn.teams) {
+      if (t.sleeperOwnerId) addCareer(t.sleeperOwnerId, t.wins, t.losses, t.finalRank === 1);
+    }
+  }
+  const currentSeasonYear = allTime[allTime.length - 1]?.season || '';
+  const currentByOwner = new Map(currentRosters.map((r) => [r.owner_id, r]));
 
   const teams = prevRosters
     .map((roster) => {
       const team = prevTeamMap.get(roster.roster_id);
       const manager = MANAGER_INFO[roster.owner_id];
       const currentTeam = [...currentTeamMap.values()].find((t) => t.ownerId === roster.owner_id);
-      const fpts = (roster.settings.fpts || 0) + ((roster.settings.fpts_decimal || 0) / 100);
-      const division = (roster.settings as Record<string, number>).division || 1;
+      const careerRec = careers.get(roster.owner_id) || { wins: 0, losses: 0, titles: 0 };
+      const currentRoster = currentByOwner.get(roster.owner_id);
+      const division = ((currentRoster?.settings || roster.settings) as Record<string, number>).division || 1;
       const favTeamKey = manager?.favoriteTeam ? FAVORITE_TEAM_MAP[manager.favoriteTeam] : null;
       const favTeam = favTeamKey ? NFL_TEAMS[favTeamKey] : null;
 
@@ -49,9 +76,11 @@ export default async function TeamsPage() {
         name: getManagerDisplayName(roster.owner_id, team?.displayName || ''),
         teamName: currentTeam?.teamName || team?.teamName || '',
         division,
-        wins: roster.settings.wins,
-        losses: roster.settings.losses,
-        fpts,
+        wins: careerRec.wins,
+        losses: careerRec.losses,
+        titles: careerRec.titles,
+        seasonWins: currentRoster?.settings.wins ?? 0,
+        seasonLosses: currentRoster?.settings.losses ?? 0,
         photo: manager?.photo || '/managers/question.jpg',
         location: manager?.location || '',
         bio: manager?.bio || '',
@@ -63,7 +92,7 @@ export default async function TeamsPage() {
         isChampion: roster.roster_id === prevChampionRosterId,
       };
     })
-    .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
+    .sort((a, b) => b.titles - a.titles || b.wins - a.wins);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -107,12 +136,15 @@ export default async function TeamsPage() {
 
               <div className="mt-4 grid grid-cols-3 gap-3 text-center">
                 <div className="bg-navy rounded-lg p-2">
-                  <div className="text-lg font-bold">{formatRecord(team.wins, team.losses, 0)}</div>
-                  <div className="text-text-muted text-xs">Record</div>
+                  <div className="text-lg font-bold">
+                    {formatRecord(team.wins, team.losses, 0)}
+                    {team.titles > 0 && <span className="text-gold text-sm ml-1" aria-label={`${team.titles} championships`}>{'🏆'.repeat(team.titles)}</span>}
+                  </div>
+                  <div className="text-text-muted text-xs">All-Time</div>
                 </div>
                 <div className="bg-navy rounded-lg p-2">
-                  <div className="text-lg font-bold text-gold">{formatPoints(team.fpts)}</div>
-                  <div className="text-text-muted text-xs">Points</div>
+                  <div className="text-lg font-bold text-gold">{formatRecord(team.seasonWins, team.seasonLosses, 0)}</div>
+                  <div className="text-text-muted text-xs">{currentSeasonYear} Season</div>
                 </div>
                 <div className="bg-navy rounded-lg p-2 flex flex-col items-center justify-center">
                   {team.favTeamLogo ? (

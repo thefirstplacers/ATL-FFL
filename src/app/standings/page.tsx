@@ -2,26 +2,9 @@ import type { Metadata } from 'next';
 import { buildTeamMap, getAllTimeData } from '@/lib/sleeper';
 import { DIVISIONS, DIVISION_COLORS, ALL_LEAGUE_IDS, LEAGUE_HISTORY, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName, getWinPercentage, warnUnknownOwner } from '@/lib/utils';
-import { ESPN_HISTORY } from '@/lib/espn-history';
+import { ESPN_HISTORY, espnTeamInfoMap } from '@/lib/espn-adapter';
 import PageHeader from '@/components/ui/PageHeader';
 import StandingsSeasonView from '@/components/StandingsSeasonView';
-
-// ESPN-era owners → site manager photos, matched by name for members still in
-// (or known to) the league. Departed members fall back to the question mark.
-const ESPN_PHOTOS: Record<string, string> = {
-  'Grant Davis': '/managers/grantmelissa1.jpg',
-  'Grayson Davis': '/managers/billgrayson.jpg',
-  'Bill Davis': '/managers/billgrayson.jpg',
-  'Justin Williams': '/managers/justin.jpg',
-  'Jordan Abrams': '/managers/jordan.jpg',
-  'Zach Miller': '/managers/zach.jpg',
-  'Ricky  Mohrig': '/managers/ricky1.jpg',
-  'Jimmy Zmija': '/managers/jim.jpg',
-  'Tyler Williams': '/managers/tyler.jpg',
-  'Garrett Davis': '/managers/garrett1.jpg',
-  'Michael Yun': '/managers/mike.jpg',
-  'Sasan Assary': '/managers/sasan.jpg',
-};
 
 export const revalidate = 3600;
 
@@ -85,25 +68,30 @@ export default async function StandingsPage() {
       .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
   }
 
-  // ESPN era (2020-21): static final standings, no divisions, no team pages.
-  // division 0 tells the view to hide division UI; empty ownerId disables links.
-  for (const [season, rows] of Object.entries(ESPN_HISTORY)) {
-    seasonStandings[season] = rows.map((r) => ({
-      rosterId: r.finalRank,
-      ownerId: '',
-      name: r.owners,
-      teamName: r.teamName,
-      photo: ESPN_PHOTOS[r.owners] || '/managers/question.jpg',
-      division: 0,
-      wins: r.wins,
-      losses: r.losses,
-      ties: r.ties,
-      fpts: r.pointsFor,
-      fptsAgainst: r.pointsAgainst,
-      winPct: getWinPercentage(r.wins, r.losses, r.ties),
-      diff: r.pointsFor - r.pointsAgainst,
-      isChampion: r.finalRank === 1,
-    }));
+  // ESPN era (2020-21): static final standings, no divisions.
+  // division 0 tells the view to hide division UI; continuing members keep
+  // their Sleeper identity (and team-page link), departed members render by name.
+  for (const [season, espn] of Object.entries(ESPN_HISTORY)) {
+    const infoMap = espnTeamInfoMap(espn);
+    seasonStandings[season] = espn.teams.map((r) => {
+      const info = infoMap.get(r.teamId)!;
+      return {
+        rosterId: r.finalRank,
+        ownerId: info.ownerId,
+        name: info.name,
+        teamName: r.teamName,
+        photo: info.photo,
+        division: 0,
+        wins: r.wins,
+        losses: r.losses,
+        ties: r.ties,
+        fpts: r.pointsFor,
+        fptsAgainst: r.pointsAgainst,
+        winPct: getWinPercentage(r.wins, r.losses, r.ties),
+        diff: r.pointsFor - r.pointsAgainst,
+        isChampion: r.finalRank === 1,
+      };
+    });
   }
 
   const allTimeRecords: Record<string, { ownerId: string; name: string; photo: string; wins: number; losses: number; totalPF: number; seasons: number; championships: number }> = {};
@@ -133,6 +121,33 @@ export default async function StandingsPage() {
         allTimeRecords[key].seasons++;
       }
       if (roster.roster_id === champRosterId) allTimeRecords[key].championships++;
+    }
+  }
+
+  // Fold the ESPN era into the all-time table: continuing members merge into
+  // their Sleeper identity; ESPN-only members get their own (unlinked) rows.
+  for (const espn of Object.values(ESPN_HISTORY)) {
+    const infoMap = espnTeamInfoMap(espn);
+    for (const t of espn.teams) {
+      const info = infoMap.get(t.teamId)!;
+      const key = info.ownerId || `espn:${info.name}`;
+      if (!allTimeRecords[key]) {
+        allTimeRecords[key] = {
+          ownerId: info.ownerId,
+          name: info.name,
+          photo: info.photo,
+          wins: 0,
+          losses: 0,
+          totalPF: 0,
+          seasons: 0,
+          championships: 0,
+        };
+      }
+      allTimeRecords[key].wins += t.wins;
+      allTimeRecords[key].losses += t.losses;
+      allTimeRecords[key].totalPF += t.pointsFor;
+      allTimeRecords[key].seasons++;
+      if (t.finalRank === 1) allTimeRecords[key].championships++;
     }
   }
 

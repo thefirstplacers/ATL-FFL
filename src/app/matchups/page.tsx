@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { buildTeamMap, pairMatchups, getAllTimeDataWithMatchups, getWinnersBracket } from '@/lib/sleeper';
 import { ALL_LEAGUE_IDS, TOTAL_WEEKS, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName } from '@/lib/utils';
+import { ESPN_HISTORY, espnTeamInfoMap } from '@/lib/espn-adapter';
 import PageHeader from '@/components/ui/PageHeader';
 import MatchupsSeasonView from '@/components/MatchupsSeasonView';
 
@@ -100,6 +101,32 @@ export default async function MatchupsPage() {
 
     allSeasonMatchups[seasonData.season] = { weeklyMatchups, bracketData };
   });
+
+  // ESPN era (2020-21): static weekly results, no bracket view
+  for (const [seasonYear, espn] of Object.entries(ESPN_HISTORY)) {
+    const infoMap = espnTeamInfoMap(espn);
+    const weeklyMatchups: Record<number, WeeklyMatchup[]> = {};
+    for (const m of espn.matchups) {
+      const home = infoMap.get(m.homeTeamId);
+      const away = infoMap.get(m.awayTeamId);
+      if (!home || !away) continue;
+      const toTeam = (info: typeof home, points: number): MatchupTeam => ({
+        rosterId: info.teamId,
+        name: info.name,
+        teamName: info.teamName,
+        points,
+        photo: info.photo,
+        ownerId: info.ownerId,
+      });
+      const arr = weeklyMatchups[m.week] ?? (weeklyMatchups[m.week] = []);
+      arr.push({
+        matchupId: arr.length + 1,
+        team1: toTeam(home, m.homePts),
+        team2: toTeam(away, m.awayPts),
+      });
+    }
+    allSeasonMatchups[seasonYear] = { weeklyMatchups, bracketData: [] };
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

@@ -22,18 +22,25 @@ interface RankingEntry {
   recentScore: number;
 }
 
+const DEFAULT_METRIC_LABELS: [string, string, string, string, string] = ['Win%', 'Scoring', 'Schedule', 'Consistency', 'Recent'];
+
 export default function RankingsSeasonView({
   seasonRankings,
+  metricLabels = {},
 }: {
   seasonRankings: Record<string, RankingEntry[]>;
+  metricLabels?: Record<string, [string, string, string, string, string]>;
 }) {
-  const seasons = useMemo(
-    () => Object.keys(seasonRankings).sort((a, b) => parseInt(b) - parseInt(a)),
-    [seasonRankings],
-  );
+  // "All-Time" leads, then years newest-first
+  const seasons = useMemo(() => {
+    const keys = Object.keys(seasonRankings);
+    const years = keys.filter((k) => !isNaN(parseInt(k))).sort((a, b) => parseInt(b) - parseInt(a));
+    return keys.includes('All-Time') ? ['All-Time', ...years] : years;
+  }, [seasonRankings]);
   const [selectedSeason, setSelectedSeason] = useState(seasons[0]);
   const rankings = useMemo(() => seasonRankings[selectedSeason] || [], [seasonRankings, selectedSeason]);
   const maxPower = rankings[0]?.powerScore || 1;
+  const labels = metricLabels[selectedSeason] || DEFAULT_METRIC_LABELS;
 
   return (
     <div>
@@ -43,7 +50,7 @@ export default function RankingsSeasonView({
         {rankings.map((team, i) => {
           const barWidth = (team.powerScore / maxPower) * 100;
           return (
-            <div key={team.rosterId} className="glass-card p-5">
+            <div key={`${team.ownerId || team.name}-${team.rosterId}`} className="glass-card p-5">
               <div className="flex items-center gap-4 mb-3">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${
@@ -61,12 +68,16 @@ export default function RankingsSeasonView({
                 </div>
                 <ManagerAvatar src={team.photo} alt={team.name} size={48} />
                 <div className="flex-1">
-                  <Link
-                    href={`/teams/${team.ownerId}`}
-                    className="font-bold text-lg hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
-                  >
-                    {team.name}
-                  </Link>
+                  {team.ownerId ? (
+                    <Link
+                      href={`/teams/${team.ownerId}`}
+                      className="font-bold text-lg hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
+                    >
+                      {team.name}
+                    </Link>
+                  ) : (
+                    <span className="font-bold text-lg">{team.name}</span>
+                  )}
                   <p className="text-text-muted text-sm">
                     {team.teamName} &middot; {team.wins}-{team.losses}
                   </p>
@@ -92,11 +103,11 @@ export default function RankingsSeasonView({
 
               <div className="grid grid-cols-5 gap-3 text-center">
                 {[
-                  { label: 'Win%', value: team.winPct.toFixed(0), color: 'text-success' },
-                  { label: 'Scoring', value: team.ptsScore.toFixed(0), color: 'text-gold' },
-                  { label: 'Schedule', value: team.schedScore.toFixed(0), color: 'text-info' },
-                  { label: 'Consistency', value: team.consistScore.toFixed(0), color: 'text-purple-400' },
-                  { label: 'Recent', value: team.recentScore.toFixed(0), color: 'text-orange-400' },
+                  { label: labels[0], value: team.winPct.toFixed(0), color: 'text-success' },
+                  { label: labels[1], value: team.ptsScore.toFixed(0), color: 'text-gold' },
+                  { label: labels[2], value: team.schedScore.toFixed(0), color: 'text-info' },
+                  { label: labels[3], value: team.consistScore.toFixed(0), color: 'text-purple-400' },
+                  { label: labels[4], value: team.recentScore.toFixed(0), color: 'text-orange-400' },
                 ].map((stat) => (
                   <div key={stat.label}>
                     <div className={`text-sm font-bold ${stat.color}`}>{stat.value}</div>

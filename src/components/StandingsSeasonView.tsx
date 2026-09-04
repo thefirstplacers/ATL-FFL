@@ -218,12 +218,9 @@ export default function StandingsSeasonView({
       <div className="glass-card overflow-hidden">
         <div className="px-6 py-4 border-b border-border/30">
           <h2 className="text-xl font-bold">
-            All-Time Records{(() => {
-              const sleeperSeasons = seasons.filter((s) => (seasonStandings[s] || []).some((t) => t.division > 0));
-              return sleeperSeasons.length > 0 ? ` (${sleeperSeasons[sleeperSeasons.length - 1]}-${sleeperSeasons[0]})` : '';
-            })()}
+            All-Time Records{seasons.length > 0 && ` (${seasons[seasons.length - 1]}-${seasons[0]})`}
           </h2>
-          <p className="text-text-muted text-sm">Sleeper era &middot; Pre-Sleeper seasons were on ESPN</p>
+          <p className="text-text-muted text-sm">Every season of the league &middot; ESPN era (2020-21) included</p>
         </div>
         <div className="overflow-x-auto">
           <table className="stats-table">
@@ -232,16 +229,23 @@ export default function StandingsSeasonView({
             </thead>
             <tbody>
               {allTimeRecords.map((team, i) => (
-                <tr key={team.ownerId}>
+                <tr key={team.ownerId || team.name}>
                   <td className="font-bold text-text-secondary">{i + 1}</td>
                   <td>
-                    <Link
-                      href={`/teams/${team.ownerId}`}
-                      className="flex items-center gap-2 hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
-                    >
-                      <ManagerAvatar src={team.photo} alt={team.name} size={28} />
-                      <span className="font-medium">{team.name}</span>
-                    </Link>
+                    {team.ownerId ? (
+                      <Link
+                        href={`/teams/${team.ownerId}`}
+                        className="flex items-center gap-2 hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
+                      >
+                        <ManagerAvatar src={team.photo} alt={team.name} size={28} />
+                        <span className="font-medium">{team.name}</span>
+                      </Link>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <ManagerAvatar src={team.photo} alt={team.name} size={28} />
+                        <span className="font-medium">{team.name}</span>
+                      </span>
+                    )}
                   </td>
                   <td className="text-text-secondary">{team.seasons}</td>
                   <td className="font-bold text-success">{team.wins}</td>

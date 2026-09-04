@@ -30,6 +30,12 @@ interface BracketEntry {
   loserId: number;
 }
 
+// ESPN-era members without a Sleeper identity have no team page — plain wrapper
+function MaybeTeamLink({ ownerId, className, children }: { ownerId: string; className: string; children: React.ReactNode }) {
+  if (!ownerId) return <span className={className.replace(/hover:\S+/g, '').trim()}>{children}</span>;
+  return <Link href={`/teams/${ownerId}`} className={className}>{children}</Link>;
+}
+
 function firstWeekWithData(matchups: Record<number, WeeklyMatchup[]>): number {
   const weeks = Object.keys(matchups)
     .map(Number)
@@ -161,19 +167,19 @@ export default function MatchupsSeasonView({
                         <div key={team.rosterId}>
                           {i === 1 && <div className="text-center text-text-muted text-xs font-medium my-2">VS</div>}
                           <div className="flex items-center gap-3">
-                            <Link
-                              href={`/teams/${team.ownerId}`}
+                            <MaybeTeamLink
+                              ownerId={team.ownerId}
                               className="focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded-full"
                             >
                               <ManagerAvatar src={team.photo} alt={team.name} size={40} />
-                            </Link>
+                            </MaybeTeamLink>
                             <div className="flex-1">
-                              <Link
-                                href={`/teams/${team.ownerId}`}
+                              <MaybeTeamLink
+                                ownerId={team.ownerId}
                                 className="font-bold hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
                               >
                                 {team.name}
-                              </Link>
+                              </MaybeTeamLink>
                               <div className="text-text-muted text-xs">{team.teamName}</div>
                             </div>
                             <div className="text-2xl font-black text-text-secondary">
@@ -193,38 +199,38 @@ export default function MatchupsSeasonView({
                 <div key={matchup.matchupId} className="glass-card overflow-hidden">
                   <div className="p-4">
                     <div className="flex items-center gap-3 mb-3">
-                      <Link
-                        href={`/teams/${winner.ownerId}`}
+                      <MaybeTeamLink
+                        ownerId={winner.ownerId}
                         className="focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded-full"
                       >
                         <ManagerAvatar src={winner.photo} alt={winner.name} size={40} ring="success" />
-                      </Link>
+                      </MaybeTeamLink>
                       <div className="flex-1">
-                        <Link
-                          href={`/teams/${winner.ownerId}`}
+                        <MaybeTeamLink
+                          ownerId={winner.ownerId}
                           className="font-bold hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
                         >
                           {winner.name}
-                        </Link>
+                        </MaybeTeamLink>
                         <div className="text-text-muted text-xs">{winner.teamName}</div>
                       </div>
                       <div className="text-2xl font-black text-success">{winner.points.toFixed(2)}</div>
                     </div>
                     <div className="text-center text-text-muted text-xs font-medium my-2">VS</div>
                     <div className="flex items-center gap-3">
-                      <Link
-                        href={`/teams/${loser.ownerId}`}
+                      <MaybeTeamLink
+                        ownerId={loser.ownerId}
                         className="focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded-full"
                       >
                         <ManagerAvatar src={loser.photo} alt={loser.name} size={40} dim />
-                      </Link>
+                      </MaybeTeamLink>
                       <div className="flex-1">
-                        <Link
-                          href={`/teams/${loser.ownerId}`}
+                        <MaybeTeamLink
+                          ownerId={loser.ownerId}
                           className="font-medium text-text-secondary hover:text-gold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold rounded"
                         >
                           {loser.name}
-                        </Link>
+                        </MaybeTeamLink>
                         <div className="text-text-muted text-xs">{loser.teamName}</div>
                       </div>
                       <div className="text-2xl font-black text-text-muted">{loser.points.toFixed(2)}</div>
