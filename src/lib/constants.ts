@@ -1,8 +1,14 @@
 export const LEAGUE_ID = '1313984141653463040'; // 2026 (current)
 export const PREV_LEAGUE_ID = '1249972596817014784'; // 2025
 
-// Full league history chain (Sleeper era)
+// Full league history chain. Sleeper era uses real league IDs; the ESPN era
+// (league 65402377, pulled via the ESPN read API 2026-09-04) uses 'espn-' ids
+// that never match a Sleeper leagueId, so id-based lookups skip them cleanly.
+// ESPN also shows a 2022 season (Sasan Assary), but per Grant (2026-09-04)
+// that was a phantom year — the Sleeper 2022 season is the canonical one.
 export const LEAGUE_HISTORY: Record<string, { id: string; season: number; champion: string; championRosterId: number }> = {
+  '2020': { id: 'espn-65402377', season: 2020, champion: 'Team Davis (Grayson Davis)', championRosterId: 0 },
+  '2021': { id: 'espn-65402377', season: 2021, champion: 'JT and a Bunch of Scrubs (Tyler Williams)', championRosterId: 0 },
   '2022': { id: '869629467407085568', season: 2022, champion: 'JWill30 (Justin Williams)', championRosterId: 4 },
   '2023': { id: '994777154728611840', season: 2023, champion: 'zachrmiller (Zach Miller)', championRosterId: 2 },
   '2024': { id: '1048835236085313536', season: 2024, champion: 'jabrams823 (Jordan Abrams)', championRosterId: 7 },

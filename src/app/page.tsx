@@ -152,7 +152,7 @@ export default async function HomePage() {
             ))}
           </div>
           <div className="px-6 py-3 bg-surface/50 text-text-muted text-xs">
-            Pre-Sleeper seasons were played on ESPN and are not available via the Sleeper API
+            2020-21 were played on ESPN — champions shown above; full weekly stats live on Sleeper (2022+)
           </div>
         </div>
       </section>
