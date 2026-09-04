@@ -42,11 +42,14 @@ export const TOTAL_WEEKS = 17;
 export const TRADE_DEADLINE_WEEK = 12;
 export const FAAB_BUDGET = 100;
 
-// Draft countdown - August 2026 (placeholder, adjust when known)
-export const DRAFT_DATE = '2026-08-23T18:00:00';
+// 2026 draft — completed Sunday Aug 30, 7:00 PM ET (Sleeper draft 1391940028808065024)
+export const DRAFT_DATE = '2026-08-30T19:00:00';
+// Week 1 kickoff (Thursday night opener) — homepage countdown target while in-season
+export const KICKOFF_DATE = '2026-09-10T20:20:00';
 
 // Scoring highlights
 export const SCORING = {
+  rec: 1, // full PPR
   pass_yd: 0.04,
   pass_td: 4,
   pass_int: -1,

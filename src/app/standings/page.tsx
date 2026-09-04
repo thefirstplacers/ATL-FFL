@@ -30,8 +30,7 @@ export interface StandingsTeam {
 }
 
 export default async function StandingsPage() {
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
-  const allTimeData = await getAllTimeData(completedLeagueIds);
+  const allTimeData = await getAllTimeData(ALL_LEAGUE_IDS);
 
   const seasonStandings: Record<string, StandingsTeam[]> = {};
 

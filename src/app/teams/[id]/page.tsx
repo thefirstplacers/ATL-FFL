@@ -34,9 +34,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: ownerId } = await params;
 
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
   const [seasons, playerMap] = await Promise.all([
-    getAllTimeDataWithMatchups(completedLeagueIds, REGULAR_SEASON_WEEKS),
+    getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS),
     getPlayerMap(),
   ]);
 

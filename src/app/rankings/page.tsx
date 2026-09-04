@@ -124,8 +124,7 @@ function computeRankings(
 }
 
 export default async function RankingsPage() {
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
-  const seasons = await getAllTimeDataWithMatchups(completedLeagueIds, REGULAR_SEASON_WEEKS);
+  const seasons = await getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS);
 
   const seasonRankings: Record<string, RankingEntry[]> = {};
   for (const s of seasons) {

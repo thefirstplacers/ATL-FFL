@@ -37,8 +37,7 @@ interface BracketEntry {
 }
 
 export default async function MatchupsPage() {
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
-  const seasons = await getAllTimeDataWithMatchups(completedLeagueIds, TOTAL_WEEKS);
+  const seasons = await getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, TOTAL_WEEKS);
 
   const brackets = await Promise.all(
     seasons.map((s) => getWinnersBracket(s.leagueId).catch(() => [])),

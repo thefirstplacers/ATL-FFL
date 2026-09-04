@@ -14,8 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RivalryPage() {
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
-  const seasons = await getAllTimeDataWithMatchups(completedLeagueIds, REGULAR_SEASON_WEEKS);
+  const seasons = await getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS);
 
   const latestSeason = seasons[seasons.length - 1];
   const teamMap = buildTeamMap(latestSeason.rosters, latestSeason.users);

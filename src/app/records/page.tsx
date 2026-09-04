@@ -45,8 +45,7 @@ interface SeasonLeader {
 }
 
 export default async function RecordsPage() {
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
-  const seasons = await getAllTimeDataWithMatchups(completedLeagueIds, REGULAR_SEASON_WEEKS);
+  const seasons = await getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, REGULAR_SEASON_WEEKS);
 
   const seasonRecords: Record<string, {
     topScores: RecordEntry[];

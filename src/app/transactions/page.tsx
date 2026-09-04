@@ -25,9 +25,8 @@ interface ProcessedTransaction {
 }
 
 export default async function TransactionsPage() {
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
   const [allTimeData, playerNames] = await Promise.all([
-    getAllTimeData(completedLeagueIds),
+    getAllTimeData(ALL_LEAGUE_IDS),
     getPlayerNames(),
   ]);
 

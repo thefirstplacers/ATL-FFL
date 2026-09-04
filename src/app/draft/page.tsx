@@ -33,8 +33,8 @@ async function getSeasonDraft(leagueId: string): Promise<Awaited<ReturnType<type
 }
 
 export default async function DraftPage() {
-  const completedLeagueIds = ALL_LEAGUE_IDS.slice(0, 4);
-  const allTimeData = await getAllTimeData(completedLeagueIds);
+  // Every league season — getSeasonDraft returns [] for seasons that haven't drafted yet
+  const allTimeData = await getAllTimeData(ALL_LEAGUE_IDS);
 
   const draftsPerSeason = await Promise.all(allTimeData.map((s) => getSeasonDraft(s.leagueId)));
 
@@ -60,15 +60,15 @@ export default async function DraftPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <PageHeader title="Draft Central" subtitle="Draft History & Upcoming Draft Prep" />
+      <PageHeader title="Draft Central" subtitle="Every pick from every season" />
 
       <div className="glass-card p-6 mb-8 bg-gradient-to-r from-gold/10 to-info/10 border-gold/20">
         <div className="flex items-start gap-4">
           <div className="text-4xl" aria-hidden="true">📋</div>
           <div>
-            <h2 className="text-xl font-bold text-gold">Draft Prep</h2>
+            <h2 className="text-xl font-bold text-gold">2026 Draft Complete</h2>
             <p className="text-text-secondary mt-2">
-              Each team can keep 1 player from last season&apos;s roster. Start scouting rookies and plan your draft strategy.
+              The 2026 draft went down August 30 — every pick is in the books below. Rosters are set for Week 1.
             </p>
             <div className="mt-4 flex flex-wrap gap-4">
               <div className="bg-navy rounded-lg px-4 py-2">
@@ -76,8 +76,8 @@ export default async function DraftPage() {
                 <div className="text-text-muted text-xs">Per team allowed</div>
               </div>
               <div className="bg-navy rounded-lg px-4 py-2">
-                <div className="text-gold font-bold">3 Rounds</div>
-                <div className="text-text-muted text-xs">Draft format</div>
+                <div className="text-gold font-bold">15 Rounds</div>
+                <div className="text-text-muted text-xs">Snake draft</div>
               </div>
               <div className="bg-navy rounded-lg px-4 py-2">
                 <div className="text-gold font-bold">$100</div>

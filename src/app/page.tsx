@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getLeague, getRosters, getUsers, getAllMatchups, buildTeamMap, pairMatchups } from '@/lib/sleeper';
-import { PREV_LEAGUE_ID, LEAGUE_NAME, LEAGUE_EST, LEAGUE_HISTORY, DIVISIONS, DIVISION_COLORS, DRAFT_DATE, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
+import { LEAGUE_ID, PREV_LEAGUE_ID, LEAGUE_NAME, LEAGUE_EST, LEAGUE_HISTORY, DIVISIONS, DIVISION_COLORS, KICKOFF_DATE, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName, formatPoints, formatRecord } from '@/lib/utils';
 import { getWinnerLoser } from '@/lib/matchups';
 import CountdownTimer from '@/components/CountdownTimer';
@@ -8,11 +8,13 @@ import CountdownTimer from '@/components/CountdownTimer';
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const [prevLeague, rosters, users, allMatchups] = await Promise.all([
+  const [prevLeague, rosters, users, allMatchups, currentRosters, currentUsers] = await Promise.all([
     getLeague(PREV_LEAGUE_ID),
     getRosters(PREV_LEAGUE_ID),
     getUsers(PREV_LEAGUE_ID),
     getAllMatchups(PREV_LEAGUE_ID, REGULAR_SEASON_WEEKS),
+    getRosters(LEAGUE_ID).catch(() => []),
+    getUsers(LEAGUE_ID).catch(() => []),
   ]);
 
   const prevSeason = prevLeague.season;
@@ -58,11 +60,16 @@ export default async function HomePage() {
     }
   }
 
+  // Divisions show the CURRENT season (falls back to last season if the new league is unreachable)
+  const divisionRosters = currentRosters.length > 0 ? currentRosters : rosters;
+  const divisionTeamMap = currentRosters.length > 0 && currentUsers.length > 0
+    ? buildTeamMap(currentRosters, currentUsers)
+    : teamMap;
   const divisionTeams: Record<number, Array<{ rosterId: number; name: string; teamName: string; wins: number; losses: number }>> = {};
-  for (const roster of rosters) {
+  for (const roster of divisionRosters) {
     const div = (roster.settings as Record<string, number>).division || 1;
     if (!divisionTeams[div]) divisionTeams[div] = [];
-    const team = teamMap.get(roster.roster_id);
+    const team = divisionTeamMap.get(roster.roster_id);
     divisionTeams[div].push({
       rosterId: roster.roster_id,
       name: getManagerDisplayName(roster.owner_id, team?.displayName || ''),
@@ -152,9 +159,9 @@ export default async function HomePage() {
 
       <section className="max-w-7xl mx-auto px-4 mt-8">
         <div className="glass-card p-6 text-center">
-          <h3 className="text-gold font-semibold uppercase tracking-wider text-sm mb-3">Next Draft Countdown</h3>
-          <CountdownTimer targetDate={DRAFT_DATE} />
-          <p className="text-text-muted mt-3 text-sm">Keeper deadline approaching &middot; 1 keeper per team</p>
+          <h3 className="text-gold font-semibold uppercase tracking-wider text-sm mb-3">Week 1 Kickoff</h3>
+          <CountdownTimer targetDate={KICKOFF_DATE} />
+          <p className="text-text-muted mt-3 text-sm">2026 draft is in the books &middot; Rosters are locked and loaded</p>
         </div>
       </section>
 
