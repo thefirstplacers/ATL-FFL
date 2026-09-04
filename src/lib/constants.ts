@@ -109,7 +109,7 @@ export const MANAGER_INFO: Record<string, {
     coManagerName: 'Melissa',
     location: 'Atlanta',
     photo: '/managers/grantmelissa1.jpg',
-    favoriteTeam: 'kc',
+    favoriteTeam: 'min',
     fantasyStart: null,
     bio: 'Commissioner',
     mode: 'Small Market',
