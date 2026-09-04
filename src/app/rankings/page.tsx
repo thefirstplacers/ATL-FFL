@@ -189,18 +189,33 @@ export default async function RankingsPage() {
     });
     seasonRankings[seasonYear] = scoreSeason(inputs, espn.regularSeasonWeeks);
 
+    // Group same-owner teams within the season before career aggregation
+    // (2020 has Bill's and Grayson's teams both under Bill & Grayson): W/L sum,
+    // the season counts once, scoring uses the owner's better team so the
+    // within-season normalization stays comparable.
     const allPF = espn.teams.map((t) => t.pointsFor);
+    const grouped = new Map<string, { info: NonNullable<ReturnType<typeof infoMap.get>>; wins: number; losses: number; pf: number; bestNorm: number; title: boolean }>();
     for (const t of espn.teams) {
       const info = infoMap.get(t.teamId)!;
+      const key = info.ownerId || `espn:${info.name}`;
+      const g = grouped.get(key) || { info, wins: 0, losses: 0, pf: 0, bestNorm: 0, title: false };
+      g.wins += t.wins;
+      g.losses += t.losses;
+      g.pf += t.pointsFor;
+      g.bestNorm = Math.max(g.bestNorm, normWithin(allPF, t.pointsFor));
+      g.title = g.title || t.finalRank === 1;
+      grouped.set(key, g);
+    }
+    for (const [key, g] of grouped) {
       addCareer(
-        info.ownerId || `espn:${info.name}`,
-        { ownerId: info.ownerId, name: info.name, photo: info.photo, firstSeason: parseInt(seasonYear) },
+        key,
+        { ownerId: g.info.ownerId, name: g.info.name, photo: g.info.photo, firstSeason: parseInt(seasonYear) },
         parseInt(seasonYear),
-        t.wins,
-        t.losses,
-        t.pointsFor,
-        normWithin(allPF, t.pointsFor),
-        t.finalRank === 1,
+        g.wins,
+        g.losses,
+        g.pf,
+        g.bestNorm,
+        g.title,
       );
     }
   }

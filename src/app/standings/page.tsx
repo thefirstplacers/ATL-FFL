@@ -126,16 +126,28 @@ export default async function StandingsPage() {
 
   // Fold the ESPN era into the all-time table: continuing members merge into
   // their Sleeper identity; ESPN-only members get their own (unlinked) rows.
+  // Group same-owner teams within a season first (2020 has both Bill's and
+  // Grayson's teams under the Bill & Grayson identity) so W/L/PF sum but the
+  // season only counts once toward "Seasons".
   for (const espn of Object.values(ESPN_HISTORY)) {
     const infoMap = espnTeamInfoMap(espn);
+    const byOwner = new Map<string, { info: ReturnType<typeof infoMap.get>; wins: number; losses: number; pf: number; title: boolean }>();
     for (const t of espn.teams) {
       const info = infoMap.get(t.teamId)!;
       const key = info.ownerId || `espn:${info.name}`;
+      const g = byOwner.get(key) || { info, wins: 0, losses: 0, pf: 0, title: false };
+      g.wins += t.wins;
+      g.losses += t.losses;
+      g.pf += t.pointsFor;
+      g.title = g.title || t.finalRank === 1;
+      byOwner.set(key, g);
+    }
+    for (const [key, g] of byOwner) {
       if (!allTimeRecords[key]) {
         allTimeRecords[key] = {
-          ownerId: info.ownerId,
-          name: info.name,
-          photo: info.photo,
+          ownerId: g.info!.ownerId,
+          name: g.info!.name,
+          photo: g.info!.photo,
           wins: 0,
           losses: 0,
           totalPF: 0,
@@ -143,11 +155,11 @@ export default async function StandingsPage() {
           championships: 0,
         };
       }
-      allTimeRecords[key].wins += t.wins;
-      allTimeRecords[key].losses += t.losses;
-      allTimeRecords[key].totalPF += t.pointsFor;
+      allTimeRecords[key].wins += g.wins;
+      allTimeRecords[key].losses += g.losses;
+      allTimeRecords[key].totalPF += g.pf;
       allTimeRecords[key].seasons++;
-      if (t.finalRank === 1) allTimeRecords[key].championships++;
+      if (g.title) allTimeRecords[key].championships++;
     }
   }
 

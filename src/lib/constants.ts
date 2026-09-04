@@ -7,7 +7,7 @@ export const PREV_LEAGUE_ID = '1249972596817014784'; // 2025
 // ESPN also shows a 2022 season (Sasan Assary), but per Grant (2026-09-04)
 // that was a phantom year — the Sleeper 2022 season is the canonical one.
 export const LEAGUE_HISTORY: Record<string, { id: string; season: number; champion: string; championRosterId: number }> = {
-  '2020': { id: 'espn-65402377', season: 2020, champion: 'Team Davis (Grayson Davis)', championRosterId: 0 },
+  '2020': { id: 'espn-65402377', season: 2020, champion: 'Team Davis (Bill & Grayson)', championRosterId: 0 },
   '2021': { id: 'espn-65402377', season: 2021, champion: 'JT and a Bunch of Scrubs (Tyler Williams)', championRosterId: 0 },
   '2022': { id: '869629467407085568', season: 2022, champion: 'JWill30 (Justin Williams)', championRosterId: 4 },
   '2023': { id: '994777154728611840', season: 2023, champion: 'zachrmiller (Zach Miller)', championRosterId: 2 },

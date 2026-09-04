@@ -89,6 +89,9 @@ export default async function RivalryPage() {
       const home = infoMap.get(m.homeTeamId);
       const away = infoMap.get(m.awayTeamId);
       if (!home?.ownerId || !away?.ownerId) continue;
+      // 2020 Bill-vs-Grayson games collapse to the same merged identity —
+      // a self-rivalry makes no sense, skip them
+      if (home.ownerId === away.ownerId) continue;
 
       const key1 = `${home.ownerId}-${away.ownerId}`;
       const key2 = `${away.ownerId}-${home.ownerId}`;

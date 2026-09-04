@@ -3,8 +3,10 @@
 // Fantasy Engine's saved ESPN auth if it ever needs a refresh.
 //
 // sleeperOwnerId bridges a continuing member's ESPN team to their current Sleeper
-// identity so all-time stats span the whole league life. Departed members (and
-// Grayson's separate pre-merge team) carry null and appear by name only.
+// identity so all-time stats span the whole league life. Departed members carry
+// null and appear by name only. Grayson's pre-merge team maps to Bill & Grayson
+// per Grant's ruling — note 2020 therefore has TWO teams with that identity, so
+// career aggregations must group same-owner teams within a season.
 export interface EspnSeasonTeam {
   teamId: number; teamName: string; owners: string; sleeperOwnerId: string | null; photo: string;
   wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number; finalRank: number;
@@ -26,7 +28,7 @@ export const ESPN_HISTORY: Record<string, EspnSeason> = {
         "teamId": 3,
         "teamName": "Team Davis",
         "owners": "Grayson Davis",
-        "sleeperOwnerId": null,
+        "sleeperOwnerId": "869658110913105920",
         "photo": "/managers/billgrayson.jpg",
         "wins": 7,
         "losses": 6,
@@ -997,7 +999,7 @@ export const ESPN_HISTORY: Record<string, EspnSeason> = {
         "teamId": 3,
         "teamName": "Team Davis",
         "owners": "Grayson Davis",
-        "sleeperOwnerId": null,
+        "sleeperOwnerId": "869658110913105920",
         "photo": "/managers/billgrayson.jpg",
         "wins": 4,
         "losses": 10,
