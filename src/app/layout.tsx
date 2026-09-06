@@ -13,6 +13,11 @@ export const metadata: Metadata = {
   },
   description: 'Standings, matchups, news, trade analysis, and more for the ATL Fantasy Football League.',
   applicationName: 'ATL FFL',
+  appleWebApp: {
+    capable: true,
+    title: 'ATL FFL',
+    statusBarStyle: 'black-translucent',
+  },
   openGraph: {
     title: 'ATL FFL · Fantasy Football League',
     description: 'Standings, matchups, news, trade analysis, and more for the ATL Fantasy Football League.',
