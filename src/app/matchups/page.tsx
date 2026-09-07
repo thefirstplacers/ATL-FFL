@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import { buildTeamMap, pairMatchups, getAllTimeDataWithMatchups, getWinnersBracket } from '@/lib/sleeper';
 import { ALL_LEAGUE_IDS, TOTAL_WEEKS, REGULAR_SEASON_WEEKS, MANAGER_INFO } from '@/lib/constants';
 import { getManagerDisplayName } from '@/lib/utils';
+import { getPlayerMap } from '@/lib/players';
+import { getProjectionEngine, type ProjectionEngine } from '@/lib/projections';
+import { LEAGUE_ID } from '@/lib/constants';
 import { ESPN_HISTORY, espnTeamInfoMap } from '@/lib/espn-adapter';
 import PageHeader from '@/components/ui/PageHeader';
 import MatchupsSeasonView from '@/components/MatchupsSeasonView';
@@ -13,6 +16,14 @@ export const metadata: Metadata = {
   description: 'Week-by-week matchup results and playoff brackets across every season.',
 };
 
+interface LineupSlot {
+  slot: string;
+  name: string;
+  pos: string;
+  pts: number;
+  proj?: number;
+}
+
 interface MatchupTeam {
   rosterId: number;
   name: string;
@@ -20,6 +31,9 @@ interface MatchupTeam {
   points: number;
   photo: string;
   ownerId: string;
+  lineup: LineupSlot[];
+  projTotal?: number;
+  projWinPct?: number;
 }
 
 interface WeeklyMatchup {
@@ -40,18 +54,34 @@ interface BracketEntry {
 export default async function MatchupsPage() {
   // Brackets are keyed by the statically-known league ids, so they can load in
   // parallel with the season data instead of waiting on it
-  const [seasons, bracketEntries] = await Promise.all([
+  const [seasons, bracketEntries, playerMap] = await Promise.all([
     getAllTimeDataWithMatchups(ALL_LEAGUE_IDS, TOTAL_WEEKS),
     Promise.all(
       ALL_LEAGUE_IDS.map(async (id) => [id, await getWinnersBracket(id).catch(() => [])] as const),
     ),
+    getPlayerMap(),
   ]);
   const bracketsByLeague = new Map(bracketEntries);
+
+  // Our own projection engine (see lib/projections.ts) for the current
+  // season's upcoming games — original model, not Sleeper's projections
+  const currentSeason = seasons.find((s) => s.leagueId === LEAGUE_ID);
+  let engine: ProjectionEngine | null = null;
+  if (currentSeason) {
+    engine = await getProjectionEngine(
+      (currentSeason.league.scoring_settings || {}) as Record<string, number>,
+      currentSeason.season,
+    ).catch(() => null);
+  }
 
   const allSeasonMatchups: Record<string, { weeklyMatchups: Record<number, WeeklyMatchup[]>; bracketData: BracketEntry[] }> = {};
 
   seasons.forEach((seasonData) => {
     const teamMap = buildTeamMap(seasonData.rosters, seasonData.users);
+    // Starter slot labels in lineup order (starters[] aligns with these)
+    const starterSlots = (seasonData.league.roster_positions || []).filter(
+      (p) => p !== 'BN' && p !== 'IR' && p !== 'TAXI',
+    );
 
     const weeklyMatchups: Record<number, WeeklyMatchup[]> = {};
     for (const [weekStr, matchups] of Object.entries(seasonData.allMatchups)) {
@@ -62,6 +92,15 @@ export default async function MatchupsPage() {
           const team = teamMap.get(m.roster_id);
           const roster = seasonData.rosters.find((r) => r.roster_id === m.roster_id);
           const manager = roster ? MANAGER_INFO[roster.owner_id] : null;
+          const lineup: LineupSlot[] = (m.starters || []).map((pid, i) => {
+            const p = pid && pid !== '0' ? playerMap.get(pid) : undefined;
+            return {
+              slot: starterSlots[i] || 'FLEX',
+              name: p?.name || (pid && pid !== '0' ? pid : 'Empty'),
+              pos: p?.position || '',
+              pts: Math.round(((m.players_points || {})[pid] ?? m.starters_points?.[i] ?? 0) * 100) / 100,
+            };
+          });
           return {
             rosterId: m.roster_id,
             name: getManagerDisplayName(roster?.owner_id || '', team?.displayName || ''),
@@ -69,9 +108,39 @@ export default async function MatchupsPage() {
             points: m.points,
             photo: manager?.photo || '/managers/question.jpg',
             ownerId: roster?.owner_id || '',
+            lineup,
           };
         };
-        return { matchupId, team1: getTeamInfo(team1), team2: getTeamInfo(team2) };
+        const t1 = getTeamInfo(team1);
+        const t2 = getTeamInfo(team2);
+
+        // Project unplayed current-season games with our own model
+        const unplayed = t1.points === 0 && t2.points === 0;
+        // Only the upcoming week — future weeks get their own projections
+        // (with their own opponents) when their time comes
+        if (engine && seasonData.leagueId === LEAGUE_ID && unplayed && week === engine.targetWeek) {
+          const enrich = (t: MatchupTeam, starters: string[]) => {
+            let total = 0;
+            let variance = 0;
+            t.lineup.forEach((slotEntry, i) => {
+              const pid = starters[i];
+              const meta = pid && pid !== '0' ? playerMap.get(pid) : undefined;
+              const p = pid && pid !== '0' ? engine!.proj(pid, meta) : 0;
+              slotEntry.proj = p;
+              total += p;
+              const s = pid && pid !== '0' ? engine!.sd(pid, meta) : 0;
+              variance += s * s;
+            });
+            t.projTotal = Math.round(total * 10) / 10;
+            return variance;
+          };
+          const v1 = enrich(t1, team1.starters || []);
+          const v2 = enrich(t2, team2.starters || []);
+          const p = engine.winProb(t1.projTotal || 0, v1, t2.projTotal || 0, v2);
+          t1.projWinPct = Math.round(p * 100);
+          t2.projWinPct = 100 - t1.projWinPct;
+        }
+        return { matchupId, team1: t1, team2: t2 };
       });
     }
 
@@ -117,6 +186,7 @@ export default async function MatchupsPage() {
         points,
         photo: info.photo,
         ownerId: info.ownerId,
+        lineup: [], // ESPN era has no per-player lineup data
       });
       const arr = weeklyMatchups[m.week] ?? (weeklyMatchups[m.week] = []);
       arr.push({
